@@ -264,6 +264,10 @@ fun JellyfinHomeScreen(
     val continueWatchingItemsState = repository?.continueWatchingItems?.collectAsState(initial = emptyList())
     val continueWatchingItems = continueWatchingItemsState?.value ?: emptyList()
     
+    // Collect error state so the error banner recomposes when a fetch fails
+    val errorState = repository?.error?.collectAsState(initial = null)
+    val loadError = errorState?.value
+    
     val nextUpItemsState = repository?.nextUpItems?.collectAsState(initial = emptyList())
     val nextUpItems = nextUpItemsState?.value ?: emptyList()
     
@@ -1612,6 +1616,21 @@ fun JellyfinHomeScreen(
                                 }
                             )
                     ) {
+                        // Error banner (visible when data fetch fails — helps diagnose issues
+                        // like blank home screens on this android5 fork)
+                        if (loadError != null) {
+                            item(key = "error_banner", contentType = "error") {
+                                Text(
+                                    text = "⚠️ 数据加载错误: $loadError",
+                                    color = Color(0xFFFF5252),
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.9f
+                                    ),
+                                    modifier = Modifier.padding(16.dp)
+                                )
+                            }
+                        }
+                        
                         // Continue Watching row
                         if (continueWatchingItems.isNotEmpty()) {
                             item(key = "continue_watching", contentType = "media_row") {
