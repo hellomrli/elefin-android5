@@ -547,7 +547,7 @@ fun SeriesDetailsScreen(
             }
 
             // Bottom container - scrollable with Cast
-            val castMembers = displayItem.People?.filter { it.Type == "Actor" } ?: emptyList()
+            val castMembers = displayItem.People?.filter { it.Type == "演员" } ?: emptyList()
             val bottomListState = rememberLazyListState()
             
             LazyColumn(
@@ -573,7 +573,7 @@ fun SeriesDetailsScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Text(
-                                text = "Cast",
+                                text = "演员",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -915,9 +915,9 @@ fun SeriesSeasonSelectorContainer(
                         }
                     )
             ) {
-                // "Seasons" title
+                // "季" title
                 Text(
-                    text = "Seasons",
+                    text = "季",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 12.dp)
@@ -978,7 +978,7 @@ fun SeriesSeasonSelectorContainer(
                             } else {
                                 // Show "Season X" when focused or selected
                                 Text(
-                                    text = "Season $seasonNumber",
+                                    text = "第 $seasonNumber 季",
                                     style = MaterialTheme.typography.labelLarge.copy(
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                         fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
@@ -1154,9 +1154,9 @@ fun SeriesBottomContainer(
                                 }
                             )
                     ) {
-                        // "Seasons" title
+                        // "季" title
                         Text(
-                            text = "Seasons",
+                            text = "季",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(bottom = 12.dp)
@@ -1263,7 +1263,7 @@ fun SeriesBottomContainer(
                                     } else {
                                         // Show "Season X" when focused or selected
                                         Text(
-                                            text = "Season $seasonNumber",
+                                            text = "第 $seasonNumber 季",
                                             style = MaterialTheme.typography.labelLarge.copy(
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                                 fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
@@ -1598,7 +1598,7 @@ fun EpisodeCard(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Check,
-                                contentDescription = "Watched",
+                                contentDescription = "已观看",
                                 tint = Color.White,
                                 modifier = Modifier.size(16.dp)
                             )
@@ -1684,7 +1684,7 @@ fun ResumeEpisodeDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = episode.Name ?: "Episode",
+                    text = episode.Name ?: "剧集",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 3,
@@ -1710,7 +1710,7 @@ fun ResumeEpisodeDialog(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
                     ) {
                         Text(
-                            "Resume",
+                            "继续播放",
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.6f
                             )
@@ -1872,7 +1872,7 @@ fun EpisodeMetadataRow(
                 val codec = stream.Codec?.uppercase() ?: ""
                 val channelLayout = stream.ChannelLayout ?: ""
                 
-                // Format as "Language (CODEC CHANNEL)" or "Language (CODEC)" or just "Language"
+                // Format as "Language (CODEC CHANNEL)" or "Language (CODEC)" or just "语言"
                 val audioText = when {
                     codec.isNotEmpty() && channelLayout.isNotEmpty() && language.isNotEmpty() -> {
                         "$language ($codec $channelLayout)"
@@ -2018,7 +2018,7 @@ fun EpisodeActionButtonsRow(
         }
     }
     
-    val playButtonLabel = if (isResumable) "Play From Start" else "Play"
+    val playButtonLabel = if (isResumable) "从头播放" else "播放"
     
     Box(
         modifier = modifier
@@ -2050,7 +2050,7 @@ fun EpisodeActionButtonsRow(
                             )
                             context.startActivity(intent)
                         },
-                        label = "Resume",
+                        label = "继续播放",
                         containerColor = androidx.compose.ui.graphics.Color.White,
                         contentColor = androidx.compose.ui.graphics.Color.Black
                     )
@@ -2087,10 +2087,10 @@ fun EpisodeActionButtonsRow(
                         shape = ButtonDefaults.shape(CircleShape),
                         contentPadding = PaddingValues(8.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.Refresh, contentDescription = "Resume", modifier = Modifier.size(14.3.dp))
+                        Icon(imageVector = Icons.Default.Refresh, contentDescription = "继续播放", modifier = Modifier.size(14.3.dp))
                         if (resumeFocused) {
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Resume", style = MaterialTheme.typography.labelLarge.copy(fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f), modifier = Modifier.padding(horizontal = 12.dp))
+                            Text("继续播放", style = MaterialTheme.typography.labelLarge.copy(fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f), modifier = Modifier.padding(horizontal = 12.dp))
                         }
                     }
                 }
@@ -2146,7 +2146,7 @@ fun EpisodeActionButtonsRow(
                     shape = ButtonDefaults.shape(CircleShape),
                     contentPadding = PaddingValues(8.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.PlayArrow, contentDescription = "Play", modifier = Modifier.size(14.3.dp))
+                    Icon(imageVector = Icons.Default.PlayArrow, contentDescription = "播放", modifier = Modifier.size(14.3.dp))
                     if (playFocused) {
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(playButtonLabel, style = MaterialTheme.typography.labelLarge.copy(fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f), modifier = Modifier.padding(horizontal = 12.dp))
@@ -2192,13 +2192,13 @@ fun EpisodeActionButtonsRow(
             ) {
                 Icon(
                     imageVector = Icons.Default.VolumeUp,
-                    contentDescription = "Audio Track",
+                    contentDescription = "音轨",
                     modifier = Modifier.size(14.3.dp)
                 )
                 if (audioFocused) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Audio",
+                        text = "音频",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
                         ),
@@ -2244,13 +2244,13 @@ fun EpisodeActionButtonsRow(
             ) {
                 Icon(
                     imageVector = Icons.Default.Language,
-                    contentDescription = "Subtitles",
+                    contentDescription = "字幕",
                     modifier = Modifier.size(14.3.dp)
                 )
                 if (subtitleFocused) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Subtitles",
+                        text = "字幕",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
                         ),
@@ -2272,7 +2272,7 @@ fun EpisodeActionButtonsRow(
                         // Prompt user to enter TMDB key
                         android.widget.Toast.makeText(
                             context,
-                            "Please enter your TMDB API key in settings to enable trailers",
+                            "请在设置中输入 TMDB API 密钥以启用预告片",
                             android.widget.Toast.LENGTH_LONG
                         ).show()
                         onShowSettings()
@@ -2307,13 +2307,13 @@ fun EpisodeActionButtonsRow(
             ) {
                 Icon(
                     imageVector = Icons.Default.Movie,
-                    contentDescription = "Watch Trailer",
+                    contentDescription = "观看预告片",
                     modifier = Modifier.size(14.3.dp)
                 )
                 if (trailerFocused) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Watch Trailer",
+                        text = "观看预告片",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
                         ),
@@ -2404,13 +2404,13 @@ fun EpisodeActionButtonsRow(
             ) {
                 Icon(
                     imageVector = Icons.Default.Check,
-                    contentDescription = if (isAlreadyWatched) "Mark As Unwatched" else "Mark As Watched",
+                    contentDescription = if (isAlreadyWatched) "标记为未观看" else "标记为已观看",
                     modifier = Modifier.size(14.3.dp)
                 )
                 if (watchedFocused) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (isAlreadyWatched) "Mark As Unwatched" else "Mark As Watched",
+                        text = if (isAlreadyWatched) "标记为未观看" else "标记为已观看",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
                         )
@@ -2432,7 +2432,7 @@ fun EpisodeActionButtonsRow(
                 
                 // Selected Subtitles
                 subtitleStream?.let { stream ->
-                    val subtitleName = stream.DisplayTitle ?: stream.Language ?: "Unknown"
+                    val subtitleName = stream.DisplayTitle ?: stream.Language ?: "未知"
                     MetadataBox(text = subtitleName, icon = Icons.Default.Language)
                 }
             }
@@ -2892,7 +2892,7 @@ fun EpisodeSubtitleSelectionDialog(
                     // Normal cancellation when composable leaves composition - don't log as error
                     throw e // Re-throw to respect cancellation
                 } catch (e: Exception) {
-                    Log.e("EpisodeSubtitleDialog", "Error fetching item details", e)
+                    Log.e("EpisodeSubtitleDialog", "获取影片详情失败", e)
                     isLoadingSubtitles = false
                 }
             }
@@ -2939,7 +2939,7 @@ fun EpisodeSubtitleSelectionDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "Select Subtitles",
+                        text = "选择字幕",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -2953,7 +2953,7 @@ fun EpisodeSubtitleSelectionDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Loading subtitles...",
+                                text = "正在加载字幕...",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
@@ -2974,7 +2974,7 @@ fun EpisodeSubtitleSelectionDialog(
                             contentPadding = PaddingValues(vertical = 4.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            // "None" option to disable subtitles
+                            // "无" option to disable subtitles
                             item {
                                 ListItem(
                                     selected = storedSubtitleIndex == null,
@@ -2985,7 +2985,7 @@ fun EpisodeSubtitleSelectionDialog(
                                     colors = listItemColors,
                                     headlineContent = {
                                         Text(
-                                            text = "None (Off)",
+                                            text = "无（关闭）",
                                             style = MaterialTheme.typography.bodyMedium.copy(
                                                 fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.7f
                                             )
@@ -2999,16 +2999,16 @@ fun EpisodeSubtitleSelectionDialog(
                             items(subtitleStreams) { stream ->
                                 val subtitleTitle = stream.DisplayTitle
                                     ?: stream.Language
-                                    ?: "Unknown"
+                                    ?: "未知"
                                 val subtitleInfo = buildString {
-                                    if (stream.IsDefault == true) append("Default")
+                                    if (stream.IsDefault == true) append("默认")
                                     if (stream.IsForced == true) {
                                         if (isNotEmpty()) append(", ")
-                                        append("Forced")
+                                        append("强制")
                                     }
                                     if (stream.IsExternal == true) {
                                         if (isNotEmpty()) append(", ")
-                                        append("External")
+                                        append("外部")
                                     }
                                 }
                                 val isSelected = stream.Index != null && stream.Index == storedSubtitleIndex
@@ -3055,7 +3055,7 @@ fun EpisodeSubtitleSelectionDialog(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = "No subtitles available",
+                                            text = "没有可用字幕",
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                         )
@@ -3068,7 +3068,7 @@ fun EpisodeSubtitleSelectionDialog(
                                 item {
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        text = "Downloaded Subtitles",
+                                        text = "已下载字幕",
                                         style = MaterialTheme.typography.labelMedium.copy(
                                             fontSize = MaterialTheme.typography.labelMedium.fontSize * 0.8f
                                         ),
@@ -3145,7 +3145,7 @@ fun EpisodeSubtitleSelectionDialog(
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "Download Subtitles",
+                                        text = "下载字幕",
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.8f
                                         )
@@ -3199,7 +3199,7 @@ fun EpisodeSubtitleSelectionDialog(
                             episodeNumber = item.IndexNumber
                         )
                     } catch (e: Exception) {
-                        Log.e("EpisodeSubtitleDialog", "Error searching subtitles", e)
+                        Log.e("EpisodeSubtitleDialog", "搜索字幕失败", e)
                         searchResults = emptyList()
                     } finally {
                         isSearching = false
@@ -3218,7 +3218,7 @@ fun EpisodeSubtitleSelectionDialog(
             onSelect = { subtitle ->
                 showSearchResults = false
                 isDownloading = true
-                downloadingSubtitleName = subtitle.attributes.release ?: "Subtitle"
+                downloadingSubtitleName = subtitle.attributes.release ?: "字幕"
                 
                 // Download the subtitle
                 scope.launch {
@@ -3239,12 +3239,12 @@ fun EpisodeSubtitleSelectionDialog(
                         } else {
                             // Show error toast
                             val errorMsg = com.flex.elefin.subtitles.OpenSubtitlesApi.lastError 
-                                ?: "Download failed"
+                                ?: "下载失败"
                             android.widget.Toast.makeText(context, errorMsg, android.widget.Toast.LENGTH_LONG).show()
                         }
                     } catch (e: Exception) {
-                        Log.e("EpisodeSubtitleDialog", "Error downloading subtitle", e)
-                        android.widget.Toast.makeText(context, "Download failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                        Log.e("EpisodeSubtitleDialog", "下载字幕失败", e)
+                        android.widget.Toast.makeText(context, "下载失败：${e.message}", android.widget.Toast.LENGTH_LONG).show()
                     } finally {
                         isDownloading = false
                     }
@@ -3289,7 +3289,7 @@ fun EpisodeAudioSelectionDialog(
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Log.e("EpisodeAudioDialog", "Error fetching item details", e)
+                    Log.e("EpisodeAudioDialog", "获取影片详情失败", e)
                     isLoadingAudio = false
                 }
             }
@@ -3340,7 +3340,7 @@ fun EpisodeAudioSelectionDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "Select Audio Track",
+                        text = "选择音轨",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -3354,7 +3354,7 @@ fun EpisodeAudioSelectionDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Loading audio tracks...",
+                                text = "正在加载音轨...",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
@@ -3379,7 +3379,7 @@ fun EpisodeAudioSelectionDialog(
                             items(audioStreams) { stream ->
                                 val audioTitle = stream.DisplayTitle
                                     ?: stream.Language
-                                    ?: "Unknown"
+                                    ?: "未知"
                                 val audioInfo = buildString {
                                     stream.Codec?.let { 
                                         append(it)
@@ -3432,7 +3432,7 @@ fun EpisodeAudioSelectionDialog(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = "No audio tracks available",
+                                            text = "没有可用音轨",
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                         )

@@ -125,11 +125,11 @@ fun JellyseerrDetailsScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 if (isTv) {
                     Button(onClick = onBackPressed) {
-                        Text("Go Back")
+                        Text("返回")
                     }
                 } else {
                     androidx.compose.material3.Button(onClick = onBackPressed) {
-                        androidx.compose.material3.Text("Go Back")
+                        androidx.compose.material3.Text("返回")
                     }
                 }
             }
@@ -138,7 +138,7 @@ fun JellyseerrDetailsScreen(
     }
     
     // Extract display data
-    val title = movieDetails?.title ?: tvDetails?.name ?: "Unknown"
+    val title = movieDetails?.title ?: tvDetails?.name ?: "未知"
     val overview = movieDetails?.overview ?: tvDetails?.overview ?: "No overview available."
     val year = (movieDetails?.releaseDate ?: tvDetails?.firstAirDate)?.take(4) ?: ""
     val backdropPath = movieDetails?.backdropPath ?: tvDetails?.backdropPath
@@ -259,7 +259,7 @@ fun JellyseerrDetailsScreen(
                             ) {
                                 Icon(Icons.Default.Check, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Available on Jellyfin")
+                                Text("在 Jellyfin 上可用")
                             }
                         } else {
                             androidx.compose.material3.Button(
@@ -269,7 +269,7 @@ fun JellyseerrDetailsScreen(
                             ) {
                                 androidx.compose.material3.Icon(Icons.Default.Check, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                androidx.compose.material3.Text("Available on Jellyfin")
+                                androidx.compose.material3.Text("在 Jellyfin 上可用")
                             }
                         }
                     } else if (isPending) {
@@ -281,7 +281,7 @@ fun JellyseerrDetailsScreen(
                             ) {
                                 Icon(Icons.Default.HourglassEmpty, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Request Pending")
+                                Text("请求待处理")
                             }
                         } else {
                             androidx.compose.material3.Button(
@@ -291,7 +291,7 @@ fun JellyseerrDetailsScreen(
                             ) {
                                 androidx.compose.material3.Icon(Icons.Default.HourglassEmpty, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                androidx.compose.material3.Text("Request Pending")
+                                androidx.compose.material3.Text("请求待处理")
                             }
                         }
                     } else {
@@ -313,7 +313,7 @@ fun JellyseerrDetailsScreen(
                                             tvDetails = apiService.getTvShowDetails(tmdbId)
                                         }
                                     } else {
-                                        Toast.makeText(context, "Request failed", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "请求失败", Toast.LENGTH_SHORT).show()
                                     }
                                     isRequesting = false
                                 }
@@ -332,11 +332,11 @@ fun JellyseerrDetailsScreen(
                                         color = Color.White
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Requesting...")
+                                    Text("请求中...")
                                 } else {
                                     Icon(Icons.Default.Download, contentDescription = null)
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Request on Jellyseerr")
+                                    Text("在 Jellyseerr 上请求")
                                 }
                             }
                         } else {
@@ -353,11 +353,11 @@ fun JellyseerrDetailsScreen(
                                         color = Color.White
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    androidx.compose.material3.Text("Requesting...")
+                                    androidx.compose.material3.Text("请求中...")
                                 } else {
                                     androidx.compose.material3.Icon(Icons.Default.Download, contentDescription = null)
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    androidx.compose.material3.Text("Request on Jellyseerr")
+                                    androidx.compose.material3.Text("在 Jellyseerr 上请求")
                                 }
                             }
                         }
@@ -376,7 +376,7 @@ fun JellyseerrDetailsScreen(
                 IconButton(onClick = onBackPressed) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
+                        contentDescription = "返回",
                         tint = Color.White
                     )
                 }
@@ -384,7 +384,7 @@ fun JellyseerrDetailsScreen(
                 androidx.compose.material3.IconButton(onClick = onBackPressed) {
                     androidx.compose.material3.Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
+                        contentDescription = "返回",
                         tint = Color.White
                     )
                 }

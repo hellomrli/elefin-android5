@@ -777,7 +777,7 @@ fun JellyfinHomeScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Settings,
-                        contentDescription = "Settings",
+                        contentDescription = "设置",
                         modifier = Modifier.size(14.dp) // Reduced from 20dp to 14dp
                     )
                 }
@@ -797,7 +797,7 @@ fun JellyfinHomeScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
+                        contentDescription = "搜索",
                         modifier = Modifier.size(14.dp) // Reduced from 20dp to 14dp
                     )
                 }
@@ -867,14 +867,14 @@ fun JellyfinHomeScreen(
                         // Show sort icon when library is selected
                         Icon(
                             imageVector = Icons.Default.SwapVert,
-                            contentDescription = "Sort",
+                            contentDescription = "排序",
                             modifier = Modifier.size(14.dp) // Reduced from 20dp to 14dp
                         )
                     } else {
                         // Show refresh icon on home screen
                         Icon(
                             imageVector = Icons.Default.Refresh,
-                            contentDescription = if (isRefreshing) "Refreshing..." else "Refresh",
+                            contentDescription = if (isRefreshing) "刷新中..." else "刷新",
                             modifier = Modifier
                                 .size(14.dp) // Reduced from 20dp to 14dp
                                 .then(
@@ -929,7 +929,7 @@ fun JellyfinHomeScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Home,
-                            contentDescription = "Home",
+                            contentDescription = "主页",
                             tint = if (homeFocused) Color.Black else Color.White,
                             modifier = Modifier
                                 .padding(horizontal = 8.dp, vertical = 4.dp) // Reduced from (12, 6) to (8, 4)
@@ -939,7 +939,7 @@ fun JellyfinHomeScreen(
                 }
                 
                 // Library buttons with underlined indicator using TV Material3 TabRow
-                // Add a single "Collections" tab if collections are available
+                // Add a single "合集" tab if collections are available
                 val allTabs = remember(libraries, collections) {
                     // Debug: Log all libraries and their CollectionType
                     libraries.forEach { lib ->
@@ -947,9 +947,9 @@ fun JellyfinHomeScreen(
                     }
                     
                     buildList<Pair<String?, String>> {
-                        // Add all libraries (exclude any library named "Collections" to avoid conflicts)
-                        addAll(libraries.filter { !it.Name.equals("Collections", ignoreCase = true) }.map { null to it.Id })
-                        // Add a single "Collections" tab if collections exist
+                        // Add all libraries (exclude any library named "合集" to avoid conflicts)
+                        addAll(libraries.filter { !it.Name.equals("合集", ignoreCase = true) }.map { null to it.Id })
+                        // Add a single "合集" tab if collections exist
                         // Use a unique identifier to avoid conflicts with library names
                         if (collections.isNotEmpty()) {
                             add("__COLLECTIONS__" to "__COLLECTIONS__")
@@ -988,7 +988,7 @@ fun JellyfinHomeScreen(
                                 selectedLibraryId == itemId
                             }
                             val itemName = if (isCollectionsTab) {
-                                "Collections"
+                                "合集"
                             } else {
                                 libraries.find { it.Id == itemId }?.Name ?: ""
                             }
@@ -1190,7 +1190,7 @@ fun JellyfinHomeScreen(
                         sortedItems.filter { item ->
                             // Keep non-Series items, or Series items with episodes
                             // Use RecursiveItemCount (total episodes) if available, fall back to ChildCount (seasons)
-                            if (item.Type != "Series") {
+                            if (item.Type != "剧集") {
                                 true
                             } else {
                                 val episodeCount = item.RecursiveItemCount ?: item.ChildCount ?: 0
@@ -1393,7 +1393,7 @@ fun JellyfinHomeScreen(
                                                         onClick = {
                                                             // Library item click - pass fromLibrary flag
                                                             val intent = when (item.Type) {
-                                                                "Series" -> {
+                                                                "剧集" -> {
                                                                     com.flex.elefin.SeriesDetailsActivity.createIntent(
                                                                         context = context,
                                                                         item = item,
@@ -1429,7 +1429,7 @@ fun JellyfinHomeScreen(
                                                         },
                                                         enableCaching = cacheLibraryImages,
                                                         reducePosterResolution = reducePosterResolution,
-                                                        unwatchedEpisodeCount = if (item.Type == "Series") item.UserData?.UnplayedItemCount else null,
+                                                        unwatchedEpisodeCount = if (item.Type == "Episode") item.UserData?.UnplayedItemCount else null,
                                                         disableAnimations = disableUIAnimations.value,
                                                         useSimpleCards = useSimpleCards.value,
                                                         useGoogleTvCards = useGoogleTvCards.value,
@@ -1553,7 +1553,7 @@ fun JellyfinHomeScreen(
                                                 onClick = {
                                                     // Collection item click - pass fromLibrary flag
                                                     val intent = when (item.Type) {
-                                                        "Series" -> {
+                                                        "剧集" -> {
                                                             com.flex.elefin.SeriesDetailsActivity.createIntent(
                                                                 context = context,
                                                                 item = item,
@@ -1640,7 +1640,7 @@ fun JellyfinHomeScreen(
                                         .focusRequester(focusRequester)
                                 ) {
                                     Text(
-                                        text = "Continue Watching",
+                                        text = "继续观看",
                                         style = MaterialTheme.typography.headlineMedium.copy(
                                             fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                         ),
@@ -1715,7 +1715,7 @@ fun JellyfinHomeScreen(
                                         )
                                 ) {
                                     Text(
-                                        text = "Next Up",
+                                        text = "接下来播放",
                                         style = MaterialTheme.typography.headlineMedium.copy(
                                             fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                         ),
@@ -1861,7 +1861,7 @@ fun JellyfinHomeScreen(
                                         )
                                 ) {
                                     Text(
-                                        text = "Recently Released Movies",
+                                        text = "最近上映电影",
                                         style = MaterialTheme.typography.headlineMedium.copy(
                                             fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                         ),
@@ -1916,7 +1916,7 @@ fun JellyfinHomeScreen(
                             val libraryShows = recentlyAddedShowsByLibrary[library.Id]?.let { shows ->
                                 if (hideShowsWithZeroEpisodes) {
                                     shows.filter { item ->
-                                        if (item.Type != "Series") {
+                                        if (item.Type != "剧集") {
                                             true
                                         } else {
                                             val episodeCount = item.RecursiveItemCount ?: item.ChildCount ?: 0
@@ -1982,7 +1982,7 @@ fun JellyfinHomeScreen(
                                                     },
                                                     enableCaching = cacheLibraryImages,
                                                     reducePosterResolution = reducePosterResolution,
-                                                    unwatchedEpisodeCount = if (item.Type == "Series") item.UserData?.UnplayedItemCount else null,
+                                                    unwatchedEpisodeCount = if (item.Type == "Episode") item.UserData?.UnplayedItemCount else null,
                                                     useSimpleCards = useSimpleCards.value,
                                                     useGoogleTvCards = useGoogleTvCards.value,
                                                     lowPowerMode = lowPowerMode.value,
@@ -2319,7 +2319,7 @@ fun JellyfinHomeScreen(
                     when (newSortType) {
                         SortType.DateAdded -> "DateAdded"
                         SortType.DateReleased -> "DateReleased"
-                        else -> "Alphabetically"
+                        else -> "按名称"
                     }
                 )
                 showSortDialog = false
@@ -2363,7 +2363,7 @@ fun SortDialog(
                 ) {
                     // Title Area
                     Text(
-                        text = "Sort & Filter",
+                        text = "排序与筛选",
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.7f
                         ),
@@ -2380,7 +2380,7 @@ fun SortDialog(
                         // SECTION: Sort By
                         item {
                              Text(
-                                text = "Sort By",
+                                text = "排序方式",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
@@ -2393,7 +2393,7 @@ fun SortDialog(
                                 onClick = { onSortSelected(SortType.Alphabetically) },
                                 headlineContent = {
                                     Text(
-                                        text = "Alphabetically",
+                                        text = "按名称",
                                         style = MaterialTheme.typography.bodyLarge.copy(
                                             fontSize = MaterialTheme.typography.bodyLarge.fontSize * 0.8f
                                         )
@@ -2408,7 +2408,7 @@ fun SortDialog(
                                 onClick = { onSortSelected(SortType.DateAdded) },
                                 headlineContent = {
                                     Text(
-                                        text = "Date Added",
+                                        text = "添加日期",
                                         style = MaterialTheme.typography.bodyLarge.copy(
                                             fontSize = MaterialTheme.typography.bodyLarge.fontSize * 0.8f
                                         )
@@ -2423,7 +2423,7 @@ fun SortDialog(
                                 onClick = { onSortSelected(SortType.DateReleased) },
                                 headlineContent = {
                                     Text(
-                                        text = "Date Released",
+                                        text = "上映日期",
                                         style = MaterialTheme.typography.bodyLarge.copy(
                                             fontSize = MaterialTheme.typography.bodyLarge.fontSize * 0.8f
                                         )
@@ -2437,7 +2437,7 @@ fun SortDialog(
                             item {
                                 Spacer(modifier = Modifier.height(24.dp))
                                 Text(
-                                    text = "Filter Genre",
+                                    text = "筛选类型",
                                     style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
@@ -2451,7 +2451,7 @@ fun SortDialog(
                                     onClick = { onGenreSelected(null) },
                                     headlineContent = {
                                         Text(
-                                            text = "All Genres",
+                                            text = "全部类型",
                                             style = MaterialTheme.typography.bodyLarge.copy(
                                                 fontSize = MaterialTheme.typography.bodyLarge.fontSize * 0.8f
                                             )
@@ -2512,13 +2512,13 @@ fun ExitConfirmationDialog(
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 Text(
-                    text = "Exit App?",
+                    text = "退出应用？",
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 
                 Text(
-                    text = "Are you sure you want to exit the app?",
+                    text = "确定要退出应用吗？",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                 )
@@ -2533,7 +2533,7 @@ fun ExitConfirmationDialog(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            text = "Cancel",
+                            text = "取消",
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontWeight = FontWeight.Bold
                             )
@@ -2545,7 +2545,7 @@ fun ExitConfirmationDialog(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            text = "Exit",
+                            text = "退出",
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontWeight = FontWeight.Bold
                             )
@@ -2573,7 +2573,7 @@ fun HomeButton(
     ) {
         Icon(
             imageVector = Icons.Default.Home,
-            contentDescription = "Home",
+            contentDescription = "主页",
             modifier = Modifier.size(24.dp) // Scale icon proportionally
         )
     }
@@ -2894,7 +2894,7 @@ fun JellyfinHorizontalCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Check,
-                            contentDescription = "Watched",
+                            contentDescription = "已观看",
                             tint = Color.White,
                             modifier = Modifier.size(16.dp)
                         )
@@ -2902,7 +2902,7 @@ fun JellyfinHorizontalCard(
                 }
                 
                 // Unwatched episodes badge
-                if (item.Type == "Series" && !isWatched && unwatchedEpisodeCount != null && unwatchedEpisodeCount > 0) {
+                if (item.Type == "Episode" && !isWatched && unwatchedEpisodeCount != null && unwatchedEpisodeCount > 0) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
@@ -2988,7 +2988,7 @@ fun JellyfinHorizontalCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Check,
-                            contentDescription = "Watched",
+                            contentDescription = "已观看",
                             tint = Color.White,
                             modifier = Modifier.size(16.dp)
                         )
@@ -2996,7 +2996,7 @@ fun JellyfinHorizontalCard(
                 }
                 
                 // Unwatched episodes badge
-                if (item.Type == "Series" && !isWatched && unwatchedEpisodeCount != null && unwatchedEpisodeCount > 0) {
+                if (item.Type == "Episode" && !isWatched && unwatchedEpisodeCount != null && unwatchedEpisodeCount > 0) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
@@ -3070,7 +3070,7 @@ fun JellyfinHorizontalCard(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Check,
-                                        contentDescription = "Watched",
+                                        contentDescription = "已观看",
                                         tint = Color.White,
                                         modifier = Modifier.size(16.dp)
                                     )
@@ -3079,7 +3079,7 @@ fun JellyfinHorizontalCard(
                             
                             // Unwatched episodes badge for TV shows (top-right corner)
                             // Only show if series is not fully watched and has unwatched episodes
-                            if (item.Type == "Series" && !isWatched && unwatchedEpisodeCount != null && unwatchedEpisodeCount > 0) {
+                            if (item.Type == "Episode" && !isWatched && unwatchedEpisodeCount != null && unwatchedEpisodeCount > 0) {
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
@@ -4001,8 +4001,8 @@ private fun MetadataSection(
             // Show episode info if:
             // 1. debouncedOriginalEpisodeItem is set and item is Series (from Recently Added Episodes where we fetch series)
             // 2. item itself is an Episode (from Continue Watching, Next Up where we keep the episode as highlighted)
-            val isEpisodeHighlight = (debouncedOriginalEpisodeItem != null && item.Type == "Series") || item.Type == "Episode"
-            val isSeriesItem = item.Type == "Series" && debouncedOriginalEpisodeItem == null
+            val isEpisodeHighlight = (debouncedOriginalEpisodeItem != null && item.Type == "Episode") || item.Type == "Episode"
+            val isSeriesItem = item.Type == "Episode" && debouncedOriginalEpisodeItem == null
             
             // Get the episode to use for metadata (either debouncedOriginalEpisodeItem or the item itself if it's an episode)
             val episodeForMetadata = if (item.Type == "Episode") item else debouncedOriginalEpisodeItem

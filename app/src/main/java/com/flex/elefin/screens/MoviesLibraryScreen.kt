@@ -254,7 +254,7 @@ fun MoviesLibraryScreen(
     }
     
     // Fetch recommendations data - using library-specific API methods
-    // This ensures "Movies" and "Movies 4K" (and other movie libraries) are treated separately
+    // This ensures "电影" and "Movies 4K" (and other movie libraries) are treated separately
     LaunchedEffect(apiService, libraryId) {
         if (apiService != null && libraryId.isNotEmpty()) {
             isLoading = true
@@ -354,7 +354,7 @@ fun MoviesLibraryScreen(
                         instantHighlightedItemDetails = details
                     }
                 } catch (e: Exception) {
-                    Log.e("MoviesLibraryScreen", "Error fetching item details", e)
+                    Log.e("MoviesLibraryScreen", "获取影片详情失败", e)
                 }
             }
         }
@@ -371,8 +371,8 @@ fun MoviesLibraryScreen(
                     discoverMoviesByCategory = discoverData
                     
                     // Set initial highlighted discover movie
-                    val firstMovie = discoverData["🔥 Trending"]?.firstOrNull()
-                        ?: discoverData["Popular"]?.firstOrNull()
+                    val firstMovie = discoverData["🔥 热门"]?.firstOrNull()
+                        ?: discoverData["热门"]?.firstOrNull()
                     if (firstMovie != null) {
                         discoverHighlightedMovie = firstMovie
                         instantDiscoverHighlightedMovie = firstMovie
@@ -417,8 +417,8 @@ fun MoviesLibraryScreen(
                             )
                         }
                     }
-                    categoryName == "Popular" -> jellyseerrApiService.getPopularMovies(nextPage)
-                    categoryName == "Upcoming" -> jellyseerrApiService.getUpcomingMovies(nextPage)
+                    categoryName == "热门" -> jellyseerrApiService.getPopularMovies(nextPage)
+                    categoryName == "即将上映" -> jellyseerrApiService.getUpcomingMovies(nextPage)
                     else -> emptyList()
                 }
                 
@@ -681,7 +681,7 @@ fun MoviesLibraryScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings",
+                            contentDescription = "设置",
                             modifier = Modifier.size(14.dp) // Reduced from 20dp to 14dp
                         )
                     }
@@ -699,7 +699,7 @@ fun MoviesLibraryScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Search,
-                            contentDescription = "Search",
+                            contentDescription = "搜索",
                             modifier = Modifier.size(14.dp) // Reduced from 20dp to 14dp
                         )
                     }
@@ -813,14 +813,14 @@ fun MoviesLibraryScreen(
                             // Show sort icon when library tab is selected
                             Icon(
                                 imageVector = Icons.Default.SwapVert,
-                                contentDescription = "Sort",
+                                contentDescription = "排序",
                                 modifier = Modifier.size(14.dp) // Reduced from 20dp to 14dp
                             )
                         } else {
                             // Show refresh icon on recommendations tab
                             Icon(
                                 imageVector = Icons.Default.Refresh,
-                                contentDescription = if (isRefreshing) "Refreshing..." else "Refresh",
+                                contentDescription = if (isRefreshing) "刷新中..." else "刷新",
                                 modifier = Modifier
                                     .size(14.dp) // Reduced from 20dp to 14dp
                                     .then(
@@ -861,7 +861,7 @@ fun MoviesLibraryScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Home,
-                                contentDescription = "Home",
+                                contentDescription = "主页",
                                 tint = if (homeFocused) Color.Black else Color.White,
                                 modifier = Modifier
                                     .padding(horizontal = 8.dp, vertical = 4.dp) // Reduced from (12, 6) to (8, 4)
@@ -873,9 +873,9 @@ fun MoviesLibraryScreen(
                     // Recommendations, Library, and Discover tabs
                     val hasJellyseerr = settings.isJellyseerrConfigured
                     val tabs = buildList {
-                        add("Recommendations" to "recommendations")
-                        add("$libraryName Library" to "library")
-                        add("Discover" to "discover")
+                        add("推荐" to "recommendations")
+                        add("$libraryName 媒体库" to "library")
+                        add("发现" to "discover")
                     }
                     val selectedTabIndex = tabs.indexOfFirst { it.second == selectedTab }.takeIf { it >= 0 } ?: 0
                     
@@ -1088,13 +1088,13 @@ fun MoviesLibraryScreen(
                     item {
                         Column(
                             modifier = Modifier
-                                .padding(top = 24.dp) // Increased to ensure "Continue Watching" title is visible
+                                .padding(top = 24.dp) // Increased to ensure "继续观看" title is visible
                                 .focusRequester(focusRequester)
                         ) {
                             // Continue Watching row - using vertical poster cards
                             if (continueWatchingMovies.isNotEmpty()) {
                                 Text(
-                                    text = "Continue Watching",
+                                    text = "继续观看",
                                     style = MaterialTheme.typography.headlineMedium.copy(
                                         fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                     ),
@@ -1141,7 +1141,7 @@ fun MoviesLibraryScreen(
                             // Recently Released row (same styling as home screen)
                             if (recentlyReleasedMovies.isNotEmpty()) {
                                 Text(
-                                    text = "Recently Released in $libraryName",
+                                    text = "$libraryName · 最近上映",
                                     style = MaterialTheme.typography.headlineMedium.copy(
                                         fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                     ),
@@ -1184,7 +1184,7 @@ fun MoviesLibraryScreen(
                             // Recently Added row (same styling as home screen)
                             if (recentlyAddedMovies.isNotEmpty()) {
                                 Text(
-                                    text = "Recently Added in $libraryName",
+                                    text = "$libraryName · 最近添加",
                                     style = MaterialTheme.typography.headlineMedium.copy(
                                         fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                     ),
@@ -1227,7 +1227,7 @@ fun MoviesLibraryScreen(
                             // Top Unwatched row (same styling as home screen)
                             if (topUnwatchedMovies.isNotEmpty()) {
                                 Text(
-                                    text = "Top Unwatched in $libraryName",
+                                    text = "$libraryName · 热门未看",
                                     style = MaterialTheme.typography.headlineMedium.copy(
                                         fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                     ),
@@ -1270,7 +1270,7 @@ fun MoviesLibraryScreen(
                             // Recently Watched row (same styling as home screen)
                             if (recentlyWatchedMovies.isNotEmpty()) {
                                 Text(
-                                    text = "Recently Watched in $libraryName",
+                                    text = "$libraryName · 最近观看",
                                     style = MaterialTheme.typography.headlineMedium.copy(
                                         fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                     ),
@@ -1313,7 +1313,7 @@ fun MoviesLibraryScreen(
                             // Favorites row (same styling as home screen)
                             if (favoriteMovies.isNotEmpty()) {
                                 Text(
-                                    text = "Favorites in $libraryName",
+                                    text = "$libraryName · 收藏",
                                     style = MaterialTheme.typography.headlineMedium.copy(
                                         fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                     ),
@@ -1356,7 +1356,7 @@ fun MoviesLibraryScreen(
                             // Top Movies in Genre 1 row
                             if (genreMovies1.isNotEmpty() && selectedGenre1.isNotEmpty()) {
                                 Text(
-                                    text = "Top Movies in $selectedGenre1",
+                                    text = "$selectedGenre1 热门电影",
                                     style = MaterialTheme.typography.headlineMedium.copy(
                                         fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                     ),
@@ -1399,7 +1399,7 @@ fun MoviesLibraryScreen(
                             // Top Movies in Genre 2 row
                             if (genreMovies2.isNotEmpty() && selectedGenre2.isNotEmpty()) {
                                 Text(
-                                    text = "Top Movies in $selectedGenre2",
+                                    text = "$selectedGenre2 热门电影",
                                     style = MaterialTheme.typography.headlineMedium.copy(
                                         fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                     ),
@@ -1442,7 +1442,7 @@ fun MoviesLibraryScreen(
                             // Top Movies in Genre 3 row
                             if (genreMovies3.isNotEmpty() && selectedGenre3.isNotEmpty()) {
                                 Text(
-                                    text = "Top Movies in $selectedGenre3",
+                                    text = "$selectedGenre3 热门电影",
                                     style = MaterialTheme.typography.headlineMedium.copy(
                                         fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                     ),
@@ -1485,7 +1485,7 @@ fun MoviesLibraryScreen(
                             // Top Movies in Genre 4 row
                             if (genreMovies4.isNotEmpty() && selectedGenre4.isNotEmpty()) {
                                 Text(
-                                    text = "Top Movies in $selectedGenre4",
+                                    text = "$selectedGenre4 热门电影",
                                     style = MaterialTheme.typography.headlineMedium.copy(
                                         fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                     ),
@@ -1528,7 +1528,7 @@ fun MoviesLibraryScreen(
                             // Top Movies in Genre 5 row
                             if (genreMovies5.isNotEmpty() && selectedGenre5.isNotEmpty()) {
                                 Text(
-                                    text = "Top Movies in $selectedGenre5",
+                                    text = "$selectedGenre5 热门电影",
                                     style = MaterialTheme.typography.headlineMedium.copy(
                                         fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                     ),
@@ -1747,13 +1747,13 @@ fun MoviesLibraryScreen(
                             verticalArrangement = Arrangement.Center
                         ) {
                             Text(
-                                text = "Jellyseerr Not Configured",
+                                text = "未配置 Jellyseerr",
                                 style = MaterialTheme.typography.headlineMedium,
                                 color = Color.White
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = "Add your Jellyseerr URL and API key in Settings to discover movies",
+                                text = "在设置中添加 Jellyseerr 地址和 API 密钥以发现电影",
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = Color.White.copy(alpha = 0.7f)
                             )
@@ -1765,7 +1765,7 @@ fun MoviesLibraryScreen(
                                     contentColor = MaterialTheme.colorScheme.onPrimary
                                 )
                             ) {
-                                Text("Go to Settings")
+                                Text("前往设置")
                             }
                         }
                     }
@@ -1776,7 +1776,7 @@ fun MoviesLibraryScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Loading discover movies...",
+                        text = "正在加载发现电影...",
                         style = MaterialTheme.typography.bodyLarge,
                         color = Color.White
                     )
@@ -1802,7 +1802,7 @@ fun MoviesLibraryScreen(
                         ) {
                             // Title
                             Text(
-                                text = discoverMovie.title ?: "Unknown",
+                                text = discoverMovie.title ?: "未知",
                                 style = MaterialTheme.typography.headlineMedium.copy(
                                     fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                 ),
@@ -1849,7 +1849,7 @@ fun MoviesLibraryScreen(
                                 // Availability badge
                                 if (discoverMovie.mediaInfo?.isAvailable == true) {
                                     Text(
-                                        text = "In Library",
+                                        text = "在媒体库中",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = Color.White,
                                         modifier = Modifier
@@ -1915,13 +1915,13 @@ fun MoviesLibraryScreen(
                                     .padding(top = 24.dp)
                                     .focusRequester(focusRequester)
                             ) {
-                                // Sort categories: "🔥 Trending" first, then "Popular", then "Upcoming"
+                                // Sort categories: "🔥 热门" first, then "热门", then "即将上映"
                                 val sortedCategories = discoverMoviesByCategory.keys.sortedWith(
                                     compareBy<String> { 
                                         when {
                                             it.startsWith("🔥") -> 0
-                                            it == "Popular" -> 1
-                                            it == "Upcoming" -> 2
+                                            it == "热门" -> 1
+                                            it == "即将上映" -> 2
                                             else -> 3
                                         }
                                     }
@@ -1954,12 +1954,12 @@ fun MoviesLibraryScreen(
                                                 }
                                                 
                                                 // Try to find by TMDB ID
-                                                var jellyfinItem = apiService?.findItemByTmdbId(movie.id, "Movie")
+                                                var jellyfinItem = apiService?.findItemByTmdbId(movie.id, "电影")
                                                 
                                                 // Fall back to title search if TMDB ID not found
                                                 if (jellyfinItem == null) {
                                                     val year = movie.releaseDate?.take(4)
-                                                    jellyfinItem = apiService?.findItemByTitle(movie.title ?: "", year, "Movie")
+                                                    jellyfinItem = apiService?.findItemByTitle(movie.title ?: "", year, "电影")
                                                 }
                                                 
                                                 if (jellyfinItem != null) {

@@ -132,12 +132,12 @@ import com.flex.elefin.theme.*
 
 // Picture mode / aspect ratio options
 enum class AspectMode(val label: String) {
-    FIT("Fit"),              // Natural letterbox - fits video in screen with black bars
-    FILL("Fill"),            // Crop to fill screen - removes black bars by cropping
+    FIT("适应"),              // Natural letterbox - fits video in screen with black bars
+    FILL("填充"),            // Crop to fill screen - removes black bars by cropping
     LETTERBOX("16:9"),       // Force 16:9 letterbox - maintains aspect ratio in 16:9 frame
-    CINEMA("Cinema"),        // Cinema scope 2.39:1 - movie theater style with wide black bars
-    STRETCH("Stretch"),      // Stretch both axes - distorts to fill screen
-    ORIGINAL("Original");    // Display at native resolution without scaling
+    CINEMA("影院"),        // Cinema scope 2.39:1 - movie theater style with wide black bars
+    STRETCH("拉伸"),      // Stretch both axes - distorts to fill screen
+    ORIGINAL("原始");    // Display at native resolution without scaling
 
     fun next(): AspectMode {
         val modes = values()
@@ -228,7 +228,7 @@ fun JellyfinVideoPlayerScreen(
             val success = com.flex.elefin.player.mpv.MpvElefinLauncher.play(
                 context = context,
                 itemId = item.Id,
-                title = item.Name ?: "Video",
+                title = item.Name ?: "视频",
                 resumePositionMs = resumePositionMs,
                 config = jellyfinConfig,
                 subtitleFilePath = subtitlePath
@@ -305,7 +305,7 @@ fun JellyfinVideoPlayerScreen(
                     // Subtitle preferences - disable ALL auto-selection but allow manual control
                     .setSelectUndeterminedTextLanguage(false)  // Don't auto-select unknown language subs
                     .setDisabledTextTrackSelectionFlags(C.SELECTION_FLAG_FORCED or C.SELECTION_FLAG_DEFAULT)  // Disable forced AND default auto-selection
-                    // ❌ DO NOT use setTrackTypeDisabled - it prevents "None" from working in ExoPlayer UI
+                    // ❌ DO NOT use setTrackTypeDisabled - it prevents "无" from working in ExoPlayer UI
                     // Only select subtitles explicitly chosen by user or saved preference
                     .setPreferredTextLanguage(null)  // No auto language preference
                     .setPreferredTextRoleFlags(0)  // No role-based auto-selection
@@ -1206,7 +1206,7 @@ fun JellyfinVideoPlayerScreen(
                             // Check for subtitle-specific errors
                             if (error.cause is ParserException || error.message?.contains("subtitle", ignoreCase = true) == true) {
                                 Log.e("JellyfinPlayer", "❌ SUBTITLE LOAD ERROR: This might be why external subtitles aren't appearing!")
-                                Log.e("JellyfinPlayer", "   Error details: ${error.cause?.message ?: "Unknown"}")
+                                Log.e("JellyfinPlayer", "   Error details: ${error.cause?.message ?: "未知"}")
                             }
                             
                             // Check if it's an HTTP 416 error (Range Not Satisfiable)
@@ -1734,7 +1734,7 @@ fun JellyfinVideoPlayerScreen(
                                     Log.w("JellyfinPlayer", "Error applying subtitle preference: ${e.message}", e)
                                 }
                             } else if (subtitleStreamIndex == null && currentSubtitleIndex == null && textTrackGroups.isNotEmpty() && textTrackGroups.none { it.isSelected } && !hasAppliedInitialSubtitlePreference) {
-                                // User explicitly selected "None" from series/movie page AND no subtitle is currently selected
+                                // User explicitly selected "无" from series/movie page AND no subtitle is currently selected
                                 // Only apply this ONCE on initial load
                                 hasAppliedInitialSubtitlePreference = true // Mark as applied
                                 try {
@@ -2033,7 +2033,7 @@ fun JellyfinVideoPlayerScreen(
                                                     Log.d("JellyfinPlayer", "⚠️ Attempted to force selection of unsupported audio track: language=${selectedFormat.language}, codec=${selectedFormat.codecs ?: "null"}, Jellyfin index=$audioIndexToApply, ExoPlayer group=$groupIndexToSelect (may not work if codec truly unsupported)")
                                                 }
                                             } catch (e: Exception) {
-                                                Log.w("JellyfinPlayer", "Error selecting audio track: ${e.message}", e)
+                                                Log.w("JellyfinPlayer", "选择音轨失败：${e.message}", e)
                                                 // If it's unsupported and addOverride failed, log a warning
                                                 if (!groupToSelect.isSupported) {
                                                     Log.w("JellyfinPlayer", "⚠️ Audio track index $audioIndexToApply is not supported by ExoPlayer (language=${preferredAudioStream.Language}, codec=${preferredAudioStream.Codec ?: "null"}) and cannot be forced")
@@ -2048,7 +2048,7 @@ fun JellyfinVideoPlayerScreen(
                                         }
                                     }
                                 } catch (e: Exception) {
-                                    Log.w("JellyfinPlayer", "Error selecting audio track: ${e.message}", e)
+                                    Log.w("JellyfinPlayer", "选择音轨失败：${e.message}", e)
                                 }
                                 } else {
                                     Log.d("JellyfinPlayer", "Audio track already matches preference, no update needed")
@@ -2079,7 +2079,7 @@ fun JellyfinVideoPlayerScreen(
                                     }
                                     // Seek to resume position only once, when player first becomes ready
                                     // IMPORTANT: Only seek if resumePositionMs > 0 (user clicked Resume or selected a chapter)
-                                    // If resumePositionMs == 0, user clicked "Play From Start" so don't seek
+                                    // If resumePositionMs == 0, user clicked "从头播放" so don't seek
                                     if (!hasSeekedToResume) {
                                         hasSeekedToResume = true // Mark as handled to prevent re-entry
                                         if (resumePositionMs > 0) {
@@ -2757,7 +2757,7 @@ fun JellyfinVideoPlayerScreen(
                                                             background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
                                                             scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
                                                             setPadding(16, 16, 16, 16)
-                                                            contentDescription = "Player Settings"
+                                                            contentDescription = "播放器设置"
                                                             isFocusable = true
                                                             isClickable = true
                                                             layoutParams = android.view.ViewGroup.LayoutParams(
@@ -2956,7 +2956,7 @@ fun JellyfinVideoPlayerScreen(
                                                     background = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
                                                     scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
                                                     setPadding(16, 16, 16, 16)
-                                                    contentDescription = "Player Settings"
+                                                    contentDescription = "播放器设置"
                                                     isFocusable = true
                                                     isClickable = true
                                                     
@@ -3200,7 +3200,7 @@ fun JellyfinVideoPlayerScreen(
                         // Skip Intro Button
                         if (showSkipIntroButton && skipMarkers.introEndMs != null) {
                             SkipButton(
-                                text = "Skip Intro",
+                                text = "跳过片头",
                                 onClick = {
                                     player.seekTo(skipMarkers.introEndMs!!)
                                     showSkipIntroButton = false
@@ -3212,7 +3212,7 @@ fun JellyfinVideoPlayerScreen(
                         // Skip Credits Button
                         if (showSkipCreditsButton && !showNextUpOverlay) {
                             SkipButton(
-                                text = "Skip Credits",
+                                text = "跳过片尾",
                                 onClick = {
                                     // Seek to near the end to trigger next episode
                                     val duration = player.duration
@@ -3405,7 +3405,7 @@ fun JellyfinVideoPlayerScreen(
                                         ) {
                                             androidx.compose.material3.Icon(
                                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                                contentDescription = "Back",
+                                                contentDescription = "返回",
                                                 tint = Color.White,
                                                 modifier = Modifier.size(24.dp)
                                             )
@@ -3497,7 +3497,7 @@ fun JellyfinVideoPlayerScreen(
                                         // Rewind button
                                         PlayerControlButton(
                                             icon = Icons.Filled.FastRewind,
-                                            contentDescription = "Rewind 15s",
+                                            contentDescription = "快退15秒",
                                             size = if (isMobile) 52.dp else 48.dp,
                                             iconSize = if (isMobile) 26.dp else 24.dp,
                                             onClick = {
@@ -3511,7 +3511,7 @@ fun JellyfinVideoPlayerScreen(
                                         // Play/Pause button - DEFAULT FOCUS TARGET
                                         PlayerControlButton(
                                             icon = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                            contentDescription = if (isPlaying) "Pause" else "Play",
+                                            contentDescription = if (isPlaying) "暂停" else "播放",
                                             size = if (isMobile) 64.dp else 48.dp,
                                             iconSize = if (isMobile) 32.dp else 24.dp,
                                             onClick = {
@@ -3526,7 +3526,7 @@ fun JellyfinVideoPlayerScreen(
                                         // Fast forward button
                                         PlayerControlButton(
                                             icon = Icons.Filled.FastForward,
-                                            contentDescription = "Forward 15s",
+                                            contentDescription = "快进15秒",
                                             size = if (isMobile) 52.dp else 48.dp,
                                             iconSize = if (isMobile) 26.dp else 24.dp,
                                             onClick = {
@@ -3555,7 +3555,7 @@ fun JellyfinVideoPlayerScreen(
                                         // CC (Subtitles) button
                                         PlayerControlButton(
                                             icon = Icons.Filled.ClosedCaption,
-                                            contentDescription = "Subtitles",
+                                            contentDescription = "字幕",
                                             onClick = {
                                                 showControls = false
                                                 settingsMenuInitialLevel = "subtitles"
@@ -3590,7 +3590,7 @@ fun JellyfinVideoPlayerScreen(
                 androidx.compose.material3.IconButton(onClick = { onBack() }) {
                     androidx.compose.material3.Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
+                        contentDescription = "返回",
                         tint = Color.White
                     )
                 }
@@ -3714,12 +3714,12 @@ fun JellyfinVideoPlayerScreen(
                 }
                 
                 // Cast members
-                val castMembers = itemDetails?.People?.filter { it.Type == "Actor" || it.Type == "GuestStar" } ?: emptyList()
+                val castMembers = itemDetails?.People?.filter { it.Type == "演员" || it.Type == "GuestStar" } ?: emptyList()
                 if (castMembers.isNotEmpty()) {
                     item {
                         Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
                             Text(
-                                text = "Cast",
+                                text = "演员",
                                 style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
@@ -3799,7 +3799,7 @@ fun JellyfinVideoPlayerScreen(
                     item {
                         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
                             Text(
-                                text = "Seasons",
+                                text = "季",
                                 style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
@@ -4230,7 +4230,7 @@ fun JellyfinVideoPlayerScreen(
                                     contentColor = Color.White
                                 )
                             ) {
-                                Text("Go Back")
+                                Text("返回")
                             }
                         }
                     }
@@ -4306,7 +4306,7 @@ fun ExoPlayerSettingsMenu(
                 // Normal cancellation when composable leaves composition - don't log as error
                 throw e // Re-throw to respect cancellation
             } catch (e: Exception) {
-                Log.e("ExoPlayerSettingsMenu", "Error fetching item details", e)
+                Log.e("ExoPlayerSettingsMenu", "获取影片详情失败", e)
                 isLoadingSubtitles = false
             }
         }
@@ -4433,10 +4433,10 @@ fun ExoPlayerSettingsMenu(
                     // Dialog title - changes based on current menu level
                     Text(
                         text = when (currentMenuLevel) {
-                            "subtitles" -> "Subtitles"
-                            "audio" -> "Audio Tracks"
-                            "speed" -> "Playback Speed"
-                            else -> "Player Settings"
+                            "subtitles" -> "字幕"
+                            "audio" -> "音轨"
+                            "speed" -> "播放速度"
+                            else -> "播放器设置"
                         },
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.8f
@@ -4483,7 +4483,7 @@ fun ExoPlayerSettingsMenu(
                                                         modifier = Modifier.size(24.dp)
                                                     )
                                                     Text(
-                                                        text = "Audio Tracks",
+                                                        text = "音轨",
                                                         style = MaterialTheme.typography.titleMedium.copy(
                                                             fontSize = MaterialTheme.typography.titleMedium.fontSize * 0.9f
                                                         )
@@ -4524,7 +4524,7 @@ fun ExoPlayerSettingsMenu(
                                                     modifier = Modifier.size(24.dp)
                                                 )
                                                 Text(
-                                                    text = "Subtitles",
+                                                    text = "字幕",
                                                     style = MaterialTheme.typography.titleMedium.copy(
                                                         fontSize = MaterialTheme.typography.titleMedium.fontSize * 0.9f
                                                     )
@@ -4565,7 +4565,7 @@ fun ExoPlayerSettingsMenu(
                                                         modifier = Modifier.size(24.dp)
                                                     )
                                                     Text(
-                                                        text = "Playback Speed",
+                                                        text = "播放速度",
                                                         style = MaterialTheme.typography.titleMedium.copy(
                                                             fontSize = MaterialTheme.typography.titleMedium.fontSize * 0.9f
                                                         )
@@ -4602,7 +4602,7 @@ fun ExoPlayerSettingsMenu(
                                 val trackTitle = buildString {
                                     track.label?.let { append(it) }
                                     if (isEmpty()) {
-                                        track.language?.let { append(it) } ?: append("Unknown")
+                                        track.language?.let { append(it) } ?: append("未知")
                                     }
                                 }
                                 val trackInfo = buildString {
@@ -4637,7 +4637,7 @@ fun ExoPlayerSettingsMenu(
                                                 exoPlayer.trackSelectionParameters = updatedParameters
                                                 Log.d("ExoPlayerSettingsMenu", "Selected audio track: $trackTitle")
                                             } catch (e: Exception) {
-                                                Log.e("ExoPlayerSettingsMenu", "Error selecting audio track", e)
+                                                Log.e("ExoPlayerSettingsMenu", "选择音轨失败", e)
                                             }
                                         }
                                     },
@@ -4678,7 +4678,7 @@ fun ExoPlayerSettingsMenu(
                                                     exoPlayer.trackSelectionParameters = updatedParameters
                                                     Log.d("ExoPlayerSettingsMenu", "Selected audio track: $trackTitle")
                                                 } catch (e: Exception) {
-                                                    Log.e("ExoPlayerSettingsMenu", "Error selecting audio track", e)
+                                                    Log.e("ExoPlayerSettingsMenu", "选择音轨失败", e)
                                                 }
                                             }
                                         }
@@ -4700,7 +4700,7 @@ fun ExoPlayerSettingsMenu(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "Loading subtitles...",
+                                    text = "正在加载字幕...",
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.8f
                                     ),
@@ -4713,7 +4713,7 @@ fun ExoPlayerSettingsMenu(
                             contentPadding = PaddingValues(vertical = 8.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            // "None" option to disable subtitles
+                            // "无" option to disable subtitles
                             item {
                                 ListItem(
                                     selected = currentSubtitleIndex == null,
@@ -4723,7 +4723,7 @@ fun ExoPlayerSettingsMenu(
                                     colors = listItemColors,
                                     headlineContent = {
                                         Text(
-                                            text = "None (Off)",
+                                            text = "无（关闭）",
                                             style = MaterialTheme.typography.bodyLarge.copy(
                                                 fontSize = MaterialTheme.typography.bodyLarge.fontSize * 0.8f
                                             )
@@ -4744,16 +4744,16 @@ fun ExoPlayerSettingsMenu(
                             items(subtitleStreams) { stream ->
                                 val subtitleTitle = stream.DisplayTitle
                                     ?: stream.Language
-                                    ?: "Unknown"
+                                    ?: "未知"
                                 val subtitleInfo = buildString {
-                                    if (stream.IsDefault == true) append("Default")
+                                    if (stream.IsDefault == true) append("默认")
                                     if (stream.IsForced == true) {
                                         if (isNotEmpty()) append(", ")
-                                        append("Forced")
+                                        append("强制")
                                     }
                                     if (stream.IsExternal == true) {
                                         if (isNotEmpty()) append(", ")
-                                        append("External")
+                                        append("外部")
                                     }
                                     // Debug: Show the actual Jellyfin index
                                     if (isNotEmpty()) append(" • ")
@@ -4805,7 +4805,7 @@ fun ExoPlayerSettingsMenu(
                             if (downloadedSubtitles.isNotEmpty()) {
                                 item {
                                     Text(
-                                        text = "Downloaded Subtitles",
+                                        text = "已下载字幕",
                                         style = MaterialTheme.typography.titleSmall.copy(
                                             fontSize = MaterialTheme.typography.titleSmall.fontSize * 0.8f
                                         ),
@@ -4881,13 +4881,13 @@ fun ExoPlayerSettingsMenu(
                             ) {
                             items(speedOptions.size) { index ->
                                 val speed = speedOptions[index]
-                                val speedText = if (speed == 1.0f) "Normal (1.0x)" else "${speed}x"
+                                val speedText = if (speed == 1.0f) "正常 (1.0x)" else "${speed}x"
                                 
                                 ListItem(
                                     selected = index == currentSpeedIndex,
                                     onClick = {
                                         exoPlayer.playbackParameters = androidx.media3.common.PlaybackParameters(speed)
-                                        Log.d("ExoPlayerSettingsMenu", "Changed playback speed to ${speed}x")
+                                        Log.d("ExoPlayerSettingsMenu", "播放速度已改为 ${speed}x")
                                     },
                                     colors = listItemColors,
                                     headlineContent = {
@@ -4903,7 +4903,7 @@ fun ExoPlayerSettingsMenu(
                                         .then(
                                             if (isMobile) Modifier.clickable {
                                                 exoPlayer.playbackParameters = androidx.media3.common.PlaybackParameters(speed)
-                                                Log.d("ExoPlayerSettingsMenu", "Changed playback speed to ${speed}x")
+                                                Log.d("ExoPlayerSettingsMenu", "播放速度已改为 ${speed}x")
                                             }
                                             else if (index == 0) Modifier.focusRequester(speedFirstItemFocusRequester)
                                             else Modifier
@@ -5114,7 +5114,7 @@ fun SubtitleSelectionDialog(
                     ?.count { it.Type == "Subtitle" } ?: 0
                 Log.d("SubtitleDialog", "Loaded $subtitleCount subtitle streams after refresh")
             } catch (e: Exception) {
-                Log.e("SubtitleDialog", "Error fetching item details", e)
+                Log.e("SubtitleDialog", "获取影片详情失败", e)
                 isLoading = false
             }
         }
@@ -5169,10 +5169,10 @@ fun SubtitleSelectionDialog(
                         .weight(1f)
                         .fillMaxWidth()
                 ) {
-                    // "None" option
+                    // "无" option
                     item {
                         SubtitleOptionItem(
-                            title = "None (Off)",
+                            title = "无（关闭）",
                             isSelected = currentSubtitleIndex == null,
                             onClick = {
                                 onSubtitleSelected(null)
@@ -5187,7 +5187,7 @@ fun SubtitleSelectionDialog(
                         
                         // Build subtitle title
                         val subtitleTitle = buildString {
-                            append(stream.DisplayTitle ?: stream.Language ?: "Unknown")
+                            append(stream.DisplayTitle ?: stream.Language ?: "未知")
                             if (stream.IsForced == true) append(" [Forced]")
                             if (stream.IsExternal == true) append(" (External)")
                             if (stream.IsHearingImpaired == true) append(" [CC]")
@@ -5213,7 +5213,7 @@ fun SubtitleSelectionDialog(
                 ),
                 modifier = Modifier.focusable()
             ) {
-                androidx.compose.material3.Text("Close", color = Color.White)
+                androidx.compose.material3.Text("关闭", color = Color.White)
             }
         }
     }
@@ -5253,7 +5253,7 @@ fun SubtitleOptionItem(
         if (isSelected) {
             androidx.compose.material3.Icon(
                 imageVector = androidx.compose.material.icons.Icons.Default.Check,
-                contentDescription = "Selected",
+                contentDescription = "已选择",
                 tint = androidx.compose.material3.MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(20.dp).padding(end = 8.dp)
             )
@@ -5304,7 +5304,7 @@ fun AudioSelectionDialog(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             androidx.compose.material3.Text(
-                text = "Select Audio Track",
+                text = "选择音轨",
                 style = androidx.compose.material3.MaterialTheme.typography.headlineSmall,
                 color = Color.White,
                 modifier = Modifier.padding(bottom = 16.dp)
@@ -5319,7 +5319,7 @@ fun AudioSelectionDialog(
                     val group = audioGroups[index]
                     val format = group.mediaTrackGroup.getFormat(0)
                     val trackTitle = buildString {
-                        append(format.label ?: format.language ?: "Unknown")
+                        append(format.label ?: format.language ?: "未知")
                         format.codecs?.let { append(" • $it") }
                         if (format.channelCount > 0) append(" • ${format.channelCount}ch")
                     }
@@ -5354,7 +5354,7 @@ fun AudioSelectionDialog(
                 ),
                 modifier = Modifier.focusable()
             ) {
-                androidx.compose.material3.Text("Close", color = Color.White)
+                androidx.compose.material3.Text("关闭", color = Color.White)
             }
         }
     }
@@ -5393,7 +5393,7 @@ fun SpeedSelectionDialog(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             androidx.compose.material3.Text(
-                text = "Playback Speed",
+                text = "播放速度",
                 style = androidx.compose.material3.MaterialTheme.typography.headlineSmall,
                 color = Color.White,
                 modifier = Modifier.padding(bottom = 16.dp)
@@ -5407,7 +5407,7 @@ fun SpeedSelectionDialog(
                 items(speeds.size) { index ->
                     val speed = speeds[index]
                     val speedText = when (speed) {
-                        1.0f -> "Normal (1.0x)"
+                        1.0f -> "正常 (1.0x)"
                         else -> "${speed}x"
                     }
                     
@@ -5430,7 +5430,7 @@ fun SpeedSelectionDialog(
                 ),
                 modifier = Modifier.focusable()
             ) {
-                androidx.compose.material3.Text("Close", color = Color.White)
+                androidx.compose.material3.Text("关闭", color = Color.White)
             }
         }
     }
@@ -5471,7 +5471,7 @@ fun SimpleOptionItem(
         if (isSelected) {
             androidx.compose.material3.Icon(
                 imageVector = Icons.Default.Check,
-                contentDescription = "Selected",
+                contentDescription = "已选择",
                 tint = androidx.compose.material3.MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(20.dp).padding(end = 8.dp)
             )
@@ -5791,7 +5791,7 @@ private fun AspectModeButton(
         ) {
             Icon(
                 imageVector = Icons.Filled.AspectRatio,
-                contentDescription = "Picture Mode: ${currentMode.label}",
+                contentDescription = "画面模式：${currentMode.label}",
                 tint = if (isFocused) Color.Black else Color.White,
                 modifier = Modifier.size(18.dp)
             )

@@ -112,13 +112,13 @@ fun ServerEntryScreen(
     
     fun connect() {
         if (serverAddress.isBlank()) {
-            errorMessage = "Server address cannot be empty"
+            errorMessage = "服务器地址不能为空"
             return
         }
         
         isConnecting = true
         errorMessage = null
-        statusMessage = "Discovering server..."
+        statusMessage = "正在查找服务器..."
         
         connectToServer(
             address = serverAddress,
@@ -185,14 +185,14 @@ fun ServerEntryScreen(
         ) {
             // Title
             Text(
-                text = "Enter Server Address",
+                text = "输入服务器地址",
                 style = MaterialTheme.typography.headlineLarge,
                 color = MaterialTheme.colorScheme.onSurface
             )
             
             // Label
             Text(
-                text = "Valid server address",
+                text = "有效的服务器地址",
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (addressFocused)
                     Color(0xFF9C27B0) // Purple label when focused for better visibility
@@ -205,7 +205,7 @@ fun ServerEntryScreen(
             TvTextField(
                 value = serverAddress,
                 onValueChange = { serverAddress = it },
-                label = "Server Address",
+                label = "服务器地址",
                 enabled = !isConnecting && prefillAddress == null,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Uri,
@@ -258,7 +258,7 @@ fun ServerEntryScreen(
                         )
                     ) {
                         Text(
-                            text = "Connect",
+                            text = "连接",
                             style = MaterialTheme.typography.labelLarge
                         )
                     }
@@ -290,7 +290,7 @@ fun ServerEntryScreen(
                         )
                     ) {
                         Text(
-                            text = if (isScanning) "Scanning..." else "Auto Detect",
+                            text = if (isScanning) "正在扫描..." else "自动检测",
                             style = MaterialTheme.typography.labelLarge
                         )
                     }
@@ -301,7 +301,7 @@ fun ServerEntryScreen(
                         modifier = Modifier.weight(1f)
                     ) {
                         MobileText(
-                            text = "Connect",
+                            text = "连接",
                             style = androidx.compose.material3.MaterialTheme.typography.labelLarge
                         )
                     }
@@ -312,7 +312,7 @@ fun ServerEntryScreen(
                         modifier = Modifier.weight(1f)
                     ) {
                         MobileText(
-                            text = if (isScanning) "Scanning..." else "Auto Detect",
+                            text = if (isScanning) "正在扫描..." else "自动检测",
                             style = androidx.compose.material3.MaterialTheme.typography.labelLarge
                         )
                     }
@@ -339,7 +339,7 @@ fun ServerEntryScreen(
             // Discovered servers list
             if (discoveredServers.isNotEmpty()) {
                 Text(
-                    text = "Discovered Servers",
+                    text = "发现的服务器",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
@@ -421,11 +421,11 @@ private fun connectToServer(
     scope.launch {
         try {
             if (address.isBlank()) {
-                onResult(false, "Server address cannot be empty")
+                onResult(false, "服务器地址不能为空")
                 return@launch
             }
             
-            onStatusUpdate?.invoke("Discovering server...")
+            onStatusUpdate?.invoke("正在查找服务器...")
             android.util.Log.d("ServerEntry", "Starting server discovery for: $address")
             
             // Use smart discovery to find the server

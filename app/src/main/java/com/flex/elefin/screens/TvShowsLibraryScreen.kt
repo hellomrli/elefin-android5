@@ -313,7 +313,7 @@ fun TvShowsLibraryScreen(
                         genreShows3 = genre3Deferred.await()
                         genreShows4 = genre4Deferred.await()
                         genreShows5 = genre5Deferred.await()
-                        libraryItems = libraryDeferred.await().filter { it.Type == "Series" }
+                        libraryItems = libraryDeferred.await().filter { it.Type == "Episode" }
                     }
                     
                     Log.d("TvShowsLibraryScreen", "Loaded TV shows for '$libraryName': " +
@@ -357,7 +357,7 @@ fun TvShowsLibraryScreen(
                         instantHighlightedItemDetails = details
                     }
                 } catch (e: Exception) {
-                    Log.e("TvShowsLibraryScreen", "Error fetching item details", e)
+                    Log.e("TvShowsLibraryScreen", "获取影片详情失败", e)
                 }
             }
         }
@@ -374,8 +374,8 @@ fun TvShowsLibraryScreen(
                     discoverTvShowsByCategory = discoverData
                     
                     // Set initial highlighted discover show
-                    val firstShow = discoverData["🔥 Trending"]?.firstOrNull()
-                        ?: discoverData["Popular"]?.firstOrNull()
+                    val firstShow = discoverData["🔥 热门"]?.firstOrNull()
+                        ?: discoverData["热门"]?.firstOrNull()
                     if (firstShow != null) {
                         discoverHighlightedShow = firstShow
                         instantDiscoverHighlightedShow = firstShow
@@ -419,8 +419,8 @@ fun TvShowsLibraryScreen(
                             )
                         }
                     }
-                    categoryName == "Popular" -> jellyseerrApiService.getPopularTvShows(nextPage)
-                    categoryName == "Upcoming" -> jellyseerrApiService.getUpcomingTvShows(nextPage)
+                    categoryName == "热门" -> jellyseerrApiService.getPopularTvShows(nextPage)
+                    categoryName == "即将上映" -> jellyseerrApiService.getUpcomingTvShows(nextPage)
                     else -> emptyList()
                 }
                 
@@ -514,7 +514,7 @@ fun TvShowsLibraryScreen(
         return if (hideShowsWithZeroEpisodes) {
             this.filter { item ->
                 // Only filter Series items, keep episodes and other types
-                if (item.Type != "Series") {
+                if (item.Type != "剧集") {
                     true
                 } else {
                     val episodeCount = item.RecursiveItemCount ?: item.ChildCount ?: 0
@@ -738,7 +738,7 @@ fun TvShowsLibraryScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Settings,
-                                    contentDescription = "Settings",
+                                    contentDescription = "设置",
                                     modifier = Modifier.size(14.dp) // Reduced from 20dp to 14dp
                                 )
                             }
@@ -756,7 +756,7 @@ fun TvShowsLibraryScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Search,
-                                    contentDescription = "Search",
+                                    contentDescription = "搜索",
                                     modifier = Modifier.size(14.dp) // Reduced from 20dp to 14dp
                                 )
                             }
@@ -839,7 +839,7 @@ fun TvShowsLibraryScreen(
                                                             genreShows3 = genre3Deferred.await()
                                                             genreShows4 = genre4Deferred.await()
                                                             genreShows5 = genre5Deferred.await()
-                                                            libraryItems = libraryDeferred.await().filter { it.Type == "Series" }
+                                                            libraryItems = libraryDeferred.await().filter { it.Type == "Episode" }
                                                         }
                                                     }
                                                     
@@ -868,14 +868,14 @@ fun TvShowsLibraryScreen(
                                     // Show sort icon when library tab is selected
                                     Icon(
                                         imageVector = Icons.Default.SwapVert,
-                                        contentDescription = "Sort",
+                                        contentDescription = "排序",
                                         modifier = Modifier.size(14.dp) // Reduced from 20dp to 14dp
                                     )
                                 } else {
                                     // Show refresh icon on recommendations tab
                                     Icon(
                                         imageVector = Icons.Default.Refresh,
-                                        contentDescription = if (isRefreshing) "Refreshing..." else "Refresh",
+                                        contentDescription = if (isRefreshing) "刷新中..." else "刷新",
                                         modifier = Modifier
                                         .size(14.dp) // Reduced from 20dp to 14dp
                                             .then(
@@ -916,7 +916,7 @@ fun TvShowsLibraryScreen(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Home,
-                                        contentDescription = "Home",
+                                        contentDescription = "主页",
                                         tint = if (homeFocused) Color.Black else Color.White,
                                         modifier = Modifier
                                             .padding(horizontal = 8.dp, vertical = 4.dp) // Reduced from (12, 6) to (8, 4)
@@ -928,9 +928,9 @@ fun TvShowsLibraryScreen(
                             // Recommendations, Library, and Trending tabs
                             val hasJellyseerr = settings.isJellyseerrConfigured
                             val tabs = buildList {
-                                add("Recommendations" to "recommendations")
-                                add("$libraryName Library" to "library")
-                                add("Discover" to "discover")
+                                add("推荐" to "recommendations")
+                                add("$libraryName 媒体库" to "library")
+                                add("发现" to "discover")
                             }
                             val selectedTabIndex = tabs.indexOfFirst { it.second == selectedTab }.takeIf { it >= 0 } ?: 0
                             
@@ -1172,13 +1172,13 @@ fun TvShowsLibraryScreen(
                             item {
                                 Column(
                                     modifier = Modifier
-                                        .padding(top = 24.dp) // Increased to ensure "Continue Watching" title is visible
+                                        .padding(top = 24.dp) // Increased to ensure "继续观看" title is visible
                                         .focusRequester(focusRequester)
                                 ) {
                                     // Continue Watching row
                                     if (continueWatchingEpisodes.isNotEmpty()) {
                                         Text(
-                                            text = "Continue Watching",
+                                            text = "继续观看",
                                             style = MaterialTheme.typography.headlineMedium.copy(
                                                 fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                             ),
@@ -1228,7 +1228,7 @@ fun TvShowsLibraryScreen(
                                     // Next Up row
                                     if (nextUpEpisodes.isNotEmpty()) {
                                         Text(
-                                            text = "Next Up",
+                                            text = "接下来播放",
                                             style = MaterialTheme.typography.headlineMedium.copy(
                                                 fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                             ),
@@ -1277,7 +1277,7 @@ fun TvShowsLibraryScreen(
                                     // Recently Released Episodes row - using poster cards (vertical)
                                     if (recentlyReleasedEpisodes.isNotEmpty()) {
                                         Text(
-                                            text = "Recently Released Episodes",
+                                            text = "最近更新的剧集",
                                             style = MaterialTheme.typography.headlineMedium.copy(
                                                 fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                             ),
@@ -1322,7 +1322,7 @@ fun TvShowsLibraryScreen(
                                     // Recently Added in TV Shows row
                                     if (filteredRecentlyAddedShows.isNotEmpty()) {
                                         Text(
-                                            text = "Recently Added in $libraryName",
+                                            text = "$libraryName · 最近添加",
                                             style = MaterialTheme.typography.headlineMedium.copy(
                                                 fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                             ),
@@ -1365,7 +1365,7 @@ fun TvShowsLibraryScreen(
                                     // Start Watching row (random unwatched suggestions)
                                     if (filteredStartWatchingShows.isNotEmpty()) {
                                         Text(
-                                            text = "Start Watching",
+                                            text = "开始观看",
                                             style = MaterialTheme.typography.headlineMedium.copy(
                                                 fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                             ),
@@ -1408,7 +1408,7 @@ fun TvShowsLibraryScreen(
                                     // Top Rated TV Shows row
                                     if (filteredTopRatedShows.isNotEmpty()) {
                                         Text(
-                                            text = "Top Rated TV Shows",
+                                            text = "高分剧集",
                                             style = MaterialTheme.typography.headlineMedium.copy(
                                                 fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                             ),
@@ -1451,7 +1451,7 @@ fun TvShowsLibraryScreen(
                                     // More in <Genre> row 1 (randomly selected genre)
                                     if (filteredGenreShows1.isNotEmpty() && selectedGenre1.isNotEmpty()) {
                                         Text(
-                                            text = "More in $selectedGenre1",
+                                            text = "$selectedGenre1 更多",
                                             style = MaterialTheme.typography.headlineMedium.copy(
                                                 fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                             ),
@@ -1494,7 +1494,7 @@ fun TvShowsLibraryScreen(
                                     // More in <Genre> row 2 (randomly selected genre)
                                     if (filteredGenreShows2.isNotEmpty() && selectedGenre2.isNotEmpty()) {
                                         Text(
-                                            text = "More in $selectedGenre2",
+                                            text = "$selectedGenre2 更多",
                                             style = MaterialTheme.typography.headlineMedium.copy(
                                                 fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                             ),
@@ -1537,7 +1537,7 @@ fun TvShowsLibraryScreen(
                                     // More in <Genre> row 3 (randomly selected genre)
                                     if (filteredGenreShows3.isNotEmpty() && selectedGenre3.isNotEmpty()) {
                                         Text(
-                                            text = "More in $selectedGenre3",
+                                            text = "$selectedGenre3 更多",
                                             style = MaterialTheme.typography.headlineMedium.copy(
                                                 fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                             ),
@@ -1580,7 +1580,7 @@ fun TvShowsLibraryScreen(
                                     // More in <Genre> row 4 (randomly selected genre)
                                     if (filteredGenreShows4.isNotEmpty() && selectedGenre4.isNotEmpty()) {
                                         Text(
-                                            text = "More in $selectedGenre4",
+                                            text = "$selectedGenre4 更多",
                                             style = MaterialTheme.typography.headlineMedium.copy(
                                                 fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                             ),
@@ -1623,7 +1623,7 @@ fun TvShowsLibraryScreen(
                                     // More in <Genre> row 5 (randomly selected genre)
                                     if (filteredGenreShows5.isNotEmpty() && selectedGenre5.isNotEmpty()) {
                                         Text(
-                                            text = "More in $selectedGenre5",
+                                            text = "$selectedGenre5 更多",
                                             style = MaterialTheme.typography.headlineMedium.copy(
                                                 fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                             ),
@@ -1842,13 +1842,13 @@ fun TvShowsLibraryScreen(
                                 verticalArrangement = Arrangement.Center
                             ) {
                                 Text(
-                                    text = "Jellyseerr Not Configured",
+                                    text = "未配置 Jellyseerr",
                                     style = MaterialTheme.typography.headlineMedium,
                                     color = Color.White
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
-                                    text = "Add your Jellyseerr URL and API key in Settings to discover TV shows",
+                                    text = "在设置中添加 Jellyseerr 地址和 API 密钥以发现剧集",
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = Color.White.copy(alpha = 0.7f)
                                 )
@@ -1860,7 +1860,7 @@ fun TvShowsLibraryScreen(
                                         contentColor = MaterialTheme.colorScheme.onPrimary
                                     )
                                 ) {
-                                    Text("Go to Settings")
+                                    Text("前往设置")
                                 }
                             }
                         }
@@ -1871,7 +1871,7 @@ fun TvShowsLibraryScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Loading discover TV shows...",
+                                text = "正在加载发现剧集...",
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = Color.White
                             )
@@ -1897,7 +1897,7 @@ fun TvShowsLibraryScreen(
                                 ) {
                                     // Title
                                     Text(
-                                        text = discoverShow.name ?: "Unknown",
+                                        text = discoverShow.name ?: "未知",
                                         style = MaterialTheme.typography.headlineMedium.copy(
                                             fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                         ),
@@ -1944,7 +1944,7 @@ fun TvShowsLibraryScreen(
                                         // Availability badge
                                         if (discoverShow.mediaInfo?.isAvailable == true) {
                                             Text(
-                                                text = "In Library",
+                                                text = "在媒体库中",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = Color.White,
                                                 modifier = Modifier
@@ -2010,13 +2010,13 @@ fun TvShowsLibraryScreen(
                                             .padding(top = 24.dp)
                                             .focusRequester(focusRequester)
                                     ) {
-                                        // Sort categories: "🔥 Trending" first, then "Popular", then "Upcoming"
+                                        // Sort categories: "🔥 热门" first, then "热门", then "即将上映"
                                         val sortedCategories = discoverTvShowsByCategory.keys.sortedWith(
                                             compareBy<String> { 
                                                 when {
                                                     it.startsWith("🔥") -> 0
-                                                    it == "Popular" -> 1
-                                                    it == "Upcoming" -> 2
+                                                    it == "热门" -> 1
+                                                    it == "即将上映" -> 2
                                                     else -> 3
                                                 }
                                             }
@@ -2052,12 +2052,12 @@ fun TvShowsLibraryScreen(
                                                         }
                                                         
                                                         // Try to find by TMDB ID
-                                                        var jellyfinItem = apiService?.findItemByTmdbId(show.id, "Series")
+                                                        var jellyfinItem = apiService?.findItemByTmdbId(show.id, "剧集")
                                                         
                                                         // Fall back to title search if TMDB ID not found
                                                         if (jellyfinItem == null) {
                                                             val year = show.firstAirDate?.take(4)
-                                                            jellyfinItem = apiService?.findItemByTitle(show.name ?: "", year, "Series")
+                                                            jellyfinItem = apiService?.findItemByTitle(show.name ?: "", year, "剧集")
                                                         }
                                                         
                                                         if (jellyfinItem != null) {

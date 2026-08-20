@@ -425,7 +425,7 @@ fun MpvSettingsMenu(
                                                     modifier = Modifier.size(24.dp)
                                                 )
                                                 Text(
-                                                    text = "Audio",
+                                                    text = "音频",
                                                     style = MaterialTheme.typography.titleMedium.copy(
                                                         fontSize = MaterialTheme.typography.titleMedium.fontSize * 0.9f
                                                     )

@@ -171,7 +171,7 @@ fun TvShowRequestScreen(
                 ) {
                     // Title
                     Text(
-                        text = displayShow.name ?: "Unknown Title",
+                        text = displayShow.name ?: "未知标题",
                         style = MaterialTheme.typography.headlineMedium,
                         color = Color.White
                     )
@@ -220,7 +220,7 @@ fun TvShowRequestScreen(
                         .padding(vertical = 33.6.dp, horizontal = 24.dp)
                 ) {
                     Text(
-                        text = "Request Seasons",
+                        text = "请求剧集",
                         style = MaterialTheme.typography.titleMedium,
                         color = Color.White,
                         modifier = Modifier.padding(bottom = 16.dp)
@@ -249,7 +249,7 @@ fun TvShowRequestScreen(
                             if (fullShowDetails == null) {
                                 CircularProgressIndicator(color = Color.White)
                             } else {
-                                Text("No seasons found", color = Color.White)
+                                Text("未找到剧集", color = Color.White)
                             }
                         }
                     }
@@ -321,7 +321,7 @@ fun TvShowRequestScreen(
                         ) {
                             androidx.compose.material3.Icon(
                                 imageVector = Icons.Default.ArrowBack,
-                                contentDescription = "Back",
+                                contentDescription = "返回",
                                 tint = Color.White
                             )
                         }
@@ -333,7 +333,7 @@ fun TvShowRequestScreen(
                                 .padding(horizontal = 24.dp, vertical = 20.dp)
                         ) {
                             androidx.compose.material3.Text(
-                                text = displayShow.name ?: "Unknown Title",
+                                text = displayShow.name ?: "未知标题",
                                 fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
@@ -369,7 +369,7 @@ fun TvShowRequestScreen(
                                     .padding(horizontal = 24.dp, vertical = 16.dp)
                             ) {
                                 androidx.compose.material3.Text(
-                                    text = "Overview",
+                                    text = "简介",
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = com.flex.elefin.theme.JetcasterOnSurface
@@ -389,7 +389,7 @@ fun TvShowRequestScreen(
                 // 3. Seasons Header
                 item {
                     androidx.compose.material3.Text(
-                        text = "Request Seasons",
+                        text = "请求剧集",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = com.flex.elefin.theme.JetcasterOnSurface,
@@ -422,7 +422,7 @@ fun TvShowRequestScreen(
                             if (fullShowDetails == null) {
                                 CircularProgressIndicator(color = com.flex.elefin.theme.JetcasterPrimary)
                             } else {
-                                androidx.compose.material3.Text("No seasons found", color = Color.White)
+                                androidx.compose.material3.Text("未找到剧集", color = Color.White)
                             }
                         }
                     }
@@ -567,7 +567,7 @@ fun SeasonRequestItem(
                     if (buttonFocused) {
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Requesting...",
+                            text = "请求中...",
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
                             ),
@@ -583,7 +583,7 @@ fun SeasonRequestItem(
                     if (buttonFocused) {
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (requestSuccess) "Requested" else "Request",
+                            text = if (requestSuccess) "已请求" else "请求",
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
                             ),
@@ -609,7 +609,7 @@ fun SeasonRequestItem(
                         strokeWidth = 2.dp
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    androidx.compose.material3.Text("Requesting...", fontSize = 12.sp)
+                    androidx.compose.material3.Text("请求中...", fontSize = 12.sp)
                 } else {
                     androidx.compose.material3.Icon(
                         imageVector = if (requestSuccess) Icons.Filled.Check else Icons.Filled.Add,
@@ -618,7 +618,7 @@ fun SeasonRequestItem(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     androidx.compose.material3.Text(
-                        text = if (requestSuccess) "Requested" else "Request",
+                        text = if (requestSuccess) "已请求" else "请求",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )

@@ -121,12 +121,12 @@ fun JellyfinLoginScreen(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = "Sign In",
+                    text = "登录",
                     style = MaterialTheme.typography.headlineLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "Connecting to $serverName",
+                    text = "正在连接 $serverName",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -200,7 +200,7 @@ fun JellyfinLoginScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     MobileText(
-                        text = "Other options:",
+                        text = "其他选项：",
                         style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                         color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -217,7 +217,7 @@ fun JellyfinLoginScreen(
                                 enabled = !isAuthenticating,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                MobileText("Use Password", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                MobileText("使用密码", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                             }
                         }
 
@@ -230,7 +230,7 @@ fun JellyfinLoginScreen(
                                 enabled = !isAuthenticating,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                MobileText("Use QuickConnect", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                MobileText("使用快速连接", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                             }
                         }
 
@@ -247,7 +247,7 @@ fun JellyfinLoginScreen(
                             enabled = !isAuthenticating,
                             modifier = Modifier.weight(1f)
                         ) {
-                            MobileText("Cancel", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            MobileText("取消", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
                     }
                 }
@@ -258,7 +258,7 @@ fun JellyfinLoginScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Other options:",
+                        text = "其他选项：",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(end = 8.dp)
@@ -277,7 +277,7 @@ fun JellyfinLoginScreen(
                                 }
                             }
                         ) {
-                            Text("Use Password")
+                            Text("使用密码")
                         }
                     }
 
@@ -294,7 +294,7 @@ fun JellyfinLoginScreen(
                                 }
                             }
                         ) {
-                            Text("Use QuickConnect")
+                            Text("使用快速连接")
                         }
                     }
 
@@ -324,7 +324,7 @@ fun JellyfinLoginScreen(
                             }
                         }
                     ) {
-                        Text("Cancel")
+                        Text("取消")
                     }
                 }
             }
@@ -368,7 +368,7 @@ private fun CredentialsLoginContent(
         TvTextField(
             value = username,
             onValueChange = onUsernameChange,
-            label = "Username",
+            label = "用户名",
             enabled = !isAuthenticating && usernameEditable,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Text,
@@ -386,7 +386,7 @@ private fun CredentialsLoginContent(
         TvTextField(
             value = password,
             onValueChange = onPasswordChange,
-            label = "Password",
+            label = "密码",
             enabled = !isAuthenticating,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Password,
@@ -456,7 +456,7 @@ private fun CredentialsLoginContent(
                     )
                 ) {
                     Text(
-                        text = if (isAuthenticating) "Authenticating..." else "Login",
+                        text = if (isAuthenticating) "正在认证..." else "登录",
                         style = MaterialTheme.typography.labelLarge
                     )
                 }
@@ -481,7 +481,7 @@ private fun CredentialsLoginContent(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     MobileText(
-                        text = if (isAuthenticating) "Authenticating..." else "Login",
+                        text = if (isAuthenticating) "正在认证..." else "登录",
                         style = androidx.compose.material3.MaterialTheme.typography.labelLarge
                     )
                 }
@@ -680,17 +680,17 @@ private fun QuickConnectLoginContent(
     val content = @Composable {
         // Instructions
         Text(
-            text = "Step 1: Open the Jellyfin app on your phone or browser",
+            text = "第 1 步：在手机或浏览器上打开 Jellyfin 应用",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            text = "Step 2: Navigate to Quick Connect in user settings",
+            text = "第 2 步：在用户设置中找到快速连接",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            text = "Step 3: Enter the code below",
+            text = "第 3 步：输入下面的代码",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -704,7 +704,7 @@ private fun QuickConnectLoginContent(
 
         if (isPolling && quickConnectCode != null) {
             Text(
-                text = "Waiting for authorization...",
+                text = "等待授权...",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.padding(top = 8.dp)
@@ -773,7 +773,7 @@ private fun QuickConnectCodeBox(
         }
     } else if (isUnavailable) {
         Text(
-            text = "QuickConnect unavailable",
+            text = "快速连接不可用",
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.error,
             modifier = Modifier.padding(vertical = 16.dp)
@@ -791,7 +791,7 @@ private fun QuickConnectCodeBox(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "Initializing...",
+                text = "正在初始化...",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

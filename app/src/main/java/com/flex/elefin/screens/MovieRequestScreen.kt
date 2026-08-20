@@ -232,7 +232,7 @@ fun MovieRequestScreen(
                             ) {
                             // Title
                             Text(
-                                text = displayMovie.title ?: "Unknown Title",
+                                text = displayMovie.title ?: "未知标题",
                                 style = MaterialTheme.typography.headlineMedium.copy(
                                     fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f
                                 ),
@@ -339,20 +339,20 @@ fun MovieRequestScreen(
                                                 requestStatus = request.status
                                                 Toast.makeText(
                                                     context,
-                                                    "${displayMovie.title} has been requested!",
+                                                    "${displayMovie.title} 已提交请求！",
                                                     Toast.LENGTH_SHORT
                                                 ).show()
                                             },
                                             onFailure = { error ->
-                                                requestError = error.message ?: "Request failed"
+                                                requestError = error.message ?: "请求失败"
                                                 Toast.makeText(
                                                     context,
-                                                    "Failed to request: ${error.message}",
+                                                    "请求失败：${error.message}",
                                                     Toast.LENGTH_LONG
                                                 ).show()
                                             }
                                         ) ?: run {
-                                            requestError = "Jellyseerr not configured"
+                                            requestError = "未配置 Jellyseerr"
                                         }
                                     }
                                 }
@@ -409,7 +409,7 @@ fun MovieRequestScreen(
                                     if (buttonFocused) {
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
-                                            text = "Requesting...",
+                                            text = "请求中...",
                                             style = MaterialTheme.typography.labelLarge.copy(
                                                 fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
                                             ),
@@ -430,10 +430,10 @@ fun MovieRequestScreen(
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             text = when {
-                                                isAvailable -> "Available"
-                                                requestSuccess -> "Requested"
-                                                isAlreadyRequested -> "Pending"
-                                                else -> "Request"
+                                                isAvailable -> "可请求"
+                                                requestSuccess -> "已请求"
+                                                isAlreadyRequested -> "待处理"
+                                                else -> "请求"
                                             },
                                             style = MaterialTheme.typography.labelLarge.copy(
                                                 fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
@@ -474,7 +474,7 @@ fun MovieRequestScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                        ) {
                            Text(
-                               text = "Cast",
+                               text = "演员",
                                style = MaterialTheme.typography.titleMedium,
                                color = MaterialTheme.colorScheme.onSurface
                            )
@@ -557,7 +557,7 @@ fun MovieRequestScreen(
                         ) {
                             androidx.compose.material3.Icon(
                                 imageVector = Icons.Default.ArrowBack,
-                                contentDescription = "Back",
+                                contentDescription = "返回",
                                 tint = Color.White
                             )
                         }
@@ -569,7 +569,7 @@ fun MovieRequestScreen(
                                 .padding(horizontal = 24.dp, vertical = 20.dp)
                         ) {
                             androidx.compose.material3.Text(
-                                text = displayMovie.title ?: "Unknown Title",
+                                text = displayMovie.title ?: "未知标题",
                                 fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
@@ -577,7 +577,7 @@ fun MovieRequestScreen(
                             Spacer(modifier = Modifier.height(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 androidx.compose.material3.Text(
-                                    text = "Movie",
+                                    text = "电影",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = com.flex.elefin.theme.JetcasterPrimary
@@ -626,20 +626,20 @@ fun MovieRequestScreen(
                                         requestStatus = request.status
                                         Toast.makeText(
                                             context,
-                                            "${displayMovie.title} has been requested!",
+                                            "${displayMovie.title} 已提交请求！",
                                             Toast.LENGTH_SHORT
                                         ).show()
                                     },
                                     onFailure = { error ->
-                                        requestError = error.message ?: "Request failed"
+                                        requestError = error.message ?: "请求失败"
                                         Toast.makeText(
                                             context,
-                                            "Failed to request: ${error.message}",
+                                            "请求失败：${error.message}",
                                             Toast.LENGTH_LONG
                                         ).show()
                                     }
                                 ) ?: run {
-                                    requestError = "Jellyseerr not configured"
+                                    requestError = "未配置 Jellyseerr"
                                 }
                             }
                         }
@@ -675,7 +675,7 @@ fun MovieRequestScreen(
                                     strokeWidth = 2.dp
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                androidx.compose.material3.Text("Requesting...", fontSize = 14.sp)
+                                androidx.compose.material3.Text("请求中...", fontSize = 14.sp)
                             } else {
                                 androidx.compose.material3.Icon(
                                     imageVector = when {
@@ -689,10 +689,10 @@ fun MovieRequestScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 androidx.compose.material3.Text(
                                     text = when {
-                                        isAvailable -> "Available"
-                                        requestSuccess -> "Requested"
-                                        isAlreadyRequested -> "Pending"
-                                        else -> "Request"
+                                        isAvailable -> "可请求"
+                                        requestSuccess -> "已请求"
+                                        isAlreadyRequested -> "待处理"
+                                        else -> "请求"
                                     },
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
@@ -722,7 +722,7 @@ fun MovieRequestScreen(
                                     .padding(horizontal = 24.dp, vertical = 16.dp)
                             ) {
                                 androidx.compose.material3.Text(
-                                    text = "Overview",
+                                    text = "简介",
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = com.flex.elefin.theme.JetcasterOnSurface
@@ -749,7 +749,7 @@ fun MovieRequestScreen(
                                 .padding(vertical = 16.dp)
                         ) {
                             androidx.compose.material3.Text(
-                                text = "Cast",
+                                text = "演员",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = com.flex.elefin.theme.JetcasterOnSurface,
