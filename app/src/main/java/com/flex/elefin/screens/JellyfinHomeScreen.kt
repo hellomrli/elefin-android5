@@ -230,22 +230,7 @@ fun JellyfinHomeScreen(
         apiService?.let { JellyfinRepository(it, settings) }
     }
 
-    val isTv = remember(context) { com.flex.elefin.ui.DeviceUtils.isTvDevice(context) }
-    if (!isTv && repository != null && !showServerEntry && !showLoginScreen) {
-        JellyfinMobileHomeScreen(
-            initialTabAction = initialTabAction,
-            onTabActionHandled = onTabActionHandled,
-            repository = repository,
-            onItemClick = onItemClick,
-            onMusicClick = onMusicClick,
-            onMoviesLibraryClick = onMoviesLibraryClick,
-            onTvShowsLibraryClick = onTvShowsLibraryClick,
-            preloadLibraryImages = preloadLibraryImages,
-            cacheLibraryImages = cacheLibraryImages,
-            reducePosterResolution = reducePosterResolution
-        )
-        return
-    }
+    // NOTE (android5 fork): mobile phone UI removed — this fork targets Android TV only.
     
     // Show server entry screen if server URL is not configured
     if (showServerEntry) {

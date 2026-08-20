@@ -134,19 +134,7 @@ fun MovieDetailsScreen(
         apiService?.let { JellyfinRepository(it, settings) }
     }
 
-    val isTv = remember(context) { com.flex.elefin.ui.DeviceUtils.isTvDevice(context) }
-    if (!isTv && repository != null) {
-        JellyfinMobileDetailsScreen(
-            item = item,
-            repository = repository,
-            onPlayClick = { playItem, resumeMs ->
-                val intent = JellyfinVideoPlayerActivity.createIntent(context, playItem.Id, resumeMs)
-                context.startActivity(intent)
-            },
-            onBackClick = { onBackPressed?.invoke() }
-        )
-        return
-    }
+    // NOTE (android5 fork): mobile phone UI removed — this fork targets Android TV only.
     
     // GL Pipeline warmup for NVIDIA Shield - prevents initial frame stutter and ANR
     LaunchedEffect(Unit) {

@@ -58,6 +58,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        // Enable core library desugaring so java.time etc. work on Android 5.0 (API 21)
+        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
         jvmTarget = "11"
@@ -76,6 +78,10 @@ android {
 }
 
 dependencies {
+
+    // Core library desugaring (java.time etc. on Android 5.0 / API 21)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
+
 
     // -------------------------------------------------------------
     // AndroidX Core + Leanback
@@ -169,12 +175,12 @@ dependencies {
     implementation(libs.jellyfin.media3.ffmpeg.decoder)
     
     // -------------------------------------------------------------
-    // AV1 Video Decoder (libgav1 software decoder)
+    // AV1 Video Decoder
     // -------------------------------------------------------------
-    // Enables AV1 playback on devices without hardware AV1 support
-    // Uses Google's libgav1 for software decoding
-    // Shield TV and many Android TV devices need this for AV1
-    implementation(project(":decoder_av1"))
+    // Removed in this fork: the upstream decoder_av1 (libgav1) module had
+    // incomplete sources (missing cpu_features/libgav1 submodules) and failed
+    // to build. AV1 software decoding is still available through MPV (dav1d)
+    // and the Jellyfin FFmpeg decoder above.
     
     // -------------------------------------------------------------
     // MPV Player (Optional - can be enabled in settings)
