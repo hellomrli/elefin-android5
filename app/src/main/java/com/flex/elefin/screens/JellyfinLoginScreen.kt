@@ -1,0 +1,867 @@
+package com.flex.elefin.screens
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Button
+import androidx.tv.material3.ButtonDefaults
+import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.OutlinedButton
+import androidx.tv.material3.Text
+import androidx.compose.material3.Button as MobileButton
+import androidx.compose.material3.OutlinedButton as MobileOutlinedButton
+import androidx.compose.material3.Text as MobileText
+import androidx.compose.material3.ButtonDefaults as MobileButtonDefaults
+import com.flex.elefin.components.TvTextField
+import com.flex.elefin.ui.DeviceUtils
+import com.flex.elefin.jellyfin.JellyfinAuthService
+import com.flex.elefin.jellyfin.JellyfinConfig
+import com.flex.elefin.jellyfin.QuickConnectError
+import com.flex.elefin.jellyfin.QuickConnectService
+import kotlinx.coroutines.isActive
+
+enum class LoginMethod {
+    CREDENTIALS,
+    QUICKCONNECT
+}
+
+@Composable
+fun JellyfinLoginScreen(
+    serverUrl: String,
+    serverName: String = "Jellyfin",
+    onLoginSuccess: () -> Unit,
+    onCancel: (() -> Unit)? = null,
+    forcedUsername: String? = null,
+    skipQuickConnect: Boolean = false
+) {
+    val context = LocalContext.current
+    val config = remember { JellyfinConfig(context) }
+
+    var loginMethod by remember { mutableStateOf<LoginMethod>(
+        if (skipQuickConnect) LoginMethod.CREDENTIALS else LoginMethod.QUICKCONNECT
+    ) }
+    var username by remember { mutableStateOf(forcedUsername ?: config.username.ifEmpty { "" }) }
+    var password by remember { mutableStateOf(config.password.ifEmpty { "" }) }
+    var isAuthenticating by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    
+    // QuickConnect state (shared between instructions and code box)
+    var quickConnectCode by remember { mutableStateOf<String?>(null) }
+    var quickConnectSecret by remember { mutableStateOf<String?>(null) }
+    var isPolling by remember { mutableStateOf(false) }
+    var isUnavailable by remember { mutableStateOf(false) }
+
+    val isTv = remember(context) { DeviceUtils.isTvDevice(context) }
+    val widthFraction = if (isTv) 0.5f else 0.9f
+    val horizontalPadding = if (isTv) 48.dp else 24.dp
+    val verticalPadding = if (isTv) 27.dp else 16.dp
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface),
+        contentAlignment = if (isTv) Alignment.TopStart else Alignment.Center
+    ) {
+        // Left side content area (matches Jellyfin AndroidTV layout / centered on mobile)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(widthFraction)
+                .fillMaxSize()
+                .padding(horizontal = horizontalPadding, vertical = verticalPadding),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Title and subtitle section
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = "Sign In",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Connecting to $serverName",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Login method content (switches between credentials and QuickConnect)
+            Crossfade(
+                targetState = loginMethod,
+                modifier = Modifier.weight(2f)
+            ) { method ->
+                when (method) {
+                    LoginMethod.CREDENTIALS -> CredentialsLoginContent(
+                        username = username,
+                        password = password,
+                        onUsernameChange = { username = it },
+                        onPasswordChange = { password = it },
+                        errorMessage = errorMessage,
+                        isAuthenticating = isAuthenticating,
+                        usernameEditable = forcedUsername == null,
+                        onLogin = {
+                            errorMessage = null
+                            isAuthenticating = true
+                            performCredentialsLogin(
+                                serverUrl = serverUrl,
+                                username = username,
+                                password = password,
+                                config = config,
+                                context = context,
+                                onSuccess = {
+                                    isAuthenticating = false
+                                    onLoginSuccess()
+                                },
+                                onError = { error ->
+                                    isAuthenticating = false
+                                    errorMessage = error
+                                }
+                            )
+                        }
+                    )
+                    LoginMethod.QUICKCONNECT -> {
+                        QuickConnectLoginContent(
+                            serverUrl = serverUrl,
+                            errorMessage = errorMessage,
+                            isAuthenticating = isAuthenticating,
+                            onError = { errorMessage = it },
+                            onSuccess = {
+                                isAuthenticating = false
+                                onLoginSuccess()
+                            },
+                            onAuthenticatingChange = { isAuthenticating = it },
+                            quickConnectCode = quickConnectCode,
+                            isPolling = isPolling,
+                            isUnavailable = isUnavailable,
+                            onQuickConnectCodeChange = { quickConnectCode = it },
+                            onQuickConnectSecretChange = { quickConnectSecret = it },
+                            onIsPollingChange = { isPolling = it },
+                            onIsUnavailableChange = { isUnavailable = it }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Action buttons at bottom
+            if (!isTv) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    MobileText(
+                        text = "Other options:",
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AnimatedVisibility(
+                            visible = loginMethod != LoginMethod.CREDENTIALS,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            MobileButton(
+                                onClick = { loginMethod = LoginMethod.CREDENTIALS },
+                                enabled = !isAuthenticating,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                MobileText("Use Password", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            }
+                        }
+
+                        AnimatedVisibility(
+                            visible = loginMethod != LoginMethod.QUICKCONNECT,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            MobileButton(
+                                onClick = { loginMethod = LoginMethod.QUICKCONNECT },
+                                enabled = !isAuthenticating,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                MobileText("Use QuickConnect", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            }
+                        }
+
+                        MobileOutlinedButton(
+                            onClick = {
+                                if (onCancel != null) {
+                                    onCancel()
+                                } else {
+                                    username = ""
+                                    password = ""
+                                    errorMessage = null
+                                }
+                            },
+                            enabled = !isAuthenticating,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            MobileText("Cancel", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Other options:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+
+                    AnimatedVisibility(visible = loginMethod != LoginMethod.CREDENTIALS) {
+                        Button(
+                            onClick = { loginMethod = LoginMethod.CREDENTIALS },
+                            enabled = !isAuthenticating,
+                            modifier = Modifier.onKeyEvent { keyEvent ->
+                                if (keyEvent.type == KeyEventType.KeyUp && keyEvent.key == Key.Enter && !isAuthenticating) {
+                                    loginMethod = LoginMethod.CREDENTIALS
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                        ) {
+                            Text("Use Password")
+                        }
+                    }
+
+                    AnimatedVisibility(visible = loginMethod != LoginMethod.QUICKCONNECT) {
+                        Button(
+                            onClick = { loginMethod = LoginMethod.QUICKCONNECT },
+                            enabled = !isAuthenticating,
+                            modifier = Modifier.onKeyEvent { keyEvent ->
+                                if (keyEvent.type == KeyEventType.KeyUp && keyEvent.key == Key.Enter && !isAuthenticating) {
+                                    loginMethod = LoginMethod.QUICKCONNECT
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                        ) {
+                            Text("Use QuickConnect")
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            if (onCancel != null) {
+                                onCancel()
+                            } else {
+                                username = ""
+                                password = ""
+                                errorMessage = null
+                            }
+                        },
+                        enabled = !isAuthenticating,
+                        modifier = Modifier.onKeyEvent { keyEvent ->
+                            if (keyEvent.type == KeyEventType.KeyUp && keyEvent.key == Key.Enter && !isAuthenticating) {
+                                if (onCancel != null) {
+                                    onCancel()
+                                } else {
+                                    username = ""
+                                    password = ""
+                                    errorMessage = null
+                                }
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                    ) {
+                        Text("Cancel")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CredentialsLoginContent(
+    username: String,
+    password: String,
+    onUsernameChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    errorMessage: String?,
+    isAuthenticating: Boolean,
+    usernameEditable: Boolean,
+    onLogin: () -> Unit
+) {
+    val usernameFocusRequester = remember { FocusRequester() }
+    val passwordFocusRequester = remember { FocusRequester() }
+    val loginButtonFocusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    var usernameFocused by remember { mutableStateOf(false) }
+    var passwordFocused by remember { mutableStateOf(false) }
+    var loginButtonFocused by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        if (usernameEditable && username.isBlank()) {
+            usernameFocusRequester.requestFocus()
+        } else {
+            passwordFocusRequester.requestFocus()
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Username Field
+        TvTextField(
+            value = username,
+            onValueChange = onUsernameChange,
+            label = "Username",
+            enabled = !isAuthenticating && usernameEditable,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Text,
+                imeAction = ImeAction.Next
+            ),
+            keyboardActions = KeyboardActions(
+                onNext = { passwordFocusRequester.requestFocus() }
+            ),
+            focusRequester = usernameFocusRequester,
+            onFocusChanged = { usernameFocused = it },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        // Password Field
+        TvTextField(
+            value = password,
+            onValueChange = onPasswordChange,
+            label = "Password",
+            enabled = !isAuthenticating,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    if (username.isNotBlank() && password.isNotBlank()) {
+                        keyboardController?.hide()
+                        loginButtonFocusRequester.requestFocus()
+                        onLogin()
+                    }
+                }
+            ),
+            visualTransformation = PasswordVisualTransformation(),
+            focusRequester = passwordFocusRequester,
+            onFocusChanged = { passwordFocused = it },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        // Login Button and Error
+        val context = LocalContext.current
+        val isTv = remember(context) { DeviceUtils.isTvDevice(context) }
+        if (isTv) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = onLogin,
+                    enabled = !isAuthenticating && username.isNotBlank() && password.isNotBlank(),
+                    modifier = Modifier
+                        .focusRequester(loginButtonFocusRequester)
+                        .onFocusChanged { loginButtonFocused = it.isFocused }
+                        .onKeyEvent { keyEvent ->
+                            if (keyEvent.type == KeyEventType.KeyUp) {
+                                when (keyEvent.key) {
+                                    Key.Enter -> {
+                                        if (!isAuthenticating && username.isNotBlank() && password.isNotBlank()) {
+                                            onLogin()
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    }
+                                    Key.DirectionUp -> {
+                                        // Move back to password field
+                                        passwordFocusRequester.requestFocus()
+                                        true
+                                    }
+                                    else -> false
+                                }
+                            } else {
+                                false
+                            }
+                        },
+                    colors = ButtonDefaults.colors(
+                        containerColor = if (loginButtonFocused) 
+                            MaterialTheme.colorScheme.primary 
+                        else 
+                            MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = if (loginButtonFocused)
+                            MaterialTheme.colorScheme.onPrimary
+                        else
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                ) {
+                    Text(
+                        text = if (isAuthenticating) "Authenticating..." else "Login",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MobileButton(
+                    onClick = onLogin,
+                    enabled = !isAuthenticating && username.isNotBlank() && password.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    MobileText(
+                        text = if (isAuthenticating) "Authenticating..." else "Login",
+                        style = androidx.compose.material3.MaterialTheme.typography.labelLarge
+                    )
+                }
+
+                if (errorMessage != null) {
+                    MobileText(
+                        text = errorMessage,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickConnectLoginContent(
+    serverUrl: String,
+    errorMessage: String?,
+    isAuthenticating: Boolean,
+    onError: (String) -> Unit,
+    onSuccess: () -> Unit,
+    onAuthenticatingChange: (Boolean) -> Unit,
+    quickConnectCode: String?,
+    isPolling: Boolean,
+    isUnavailable: Boolean,
+    onQuickConnectCodeChange: (String?) -> Unit,
+    onQuickConnectSecretChange: (String?) -> Unit,
+    onIsPollingChange: (Boolean) -> Unit,
+    onIsUnavailableChange: (Boolean) -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val authScope = rememberCoroutineScope() // Separate scope for authentication to avoid cancellation
+    val config = remember { JellyfinConfig(context) }
+    var quickConnectSecret by remember { mutableStateOf<String?>(null) }
+
+    // Initiate QuickConnect when composable is first shown
+    LaunchedEffect(Unit) {
+        if (quickConnectSecret == null && !isUnavailable) {
+            onAuthenticatingChange(true)
+            try {
+                val trimmedUrl = serverUrl.trim().removeSuffix("/")
+                android.util.Log.d("QuickConnectLogin", "Attempting QuickConnect with server: $trimmedUrl")
+                val quickConnectService = QuickConnectService(trimmedUrl, context)
+                val result = quickConnectService.initiateQuickConnect()
+                
+                when {
+                    result.data != null -> {
+                        android.util.Log.d("QuickConnectLogin", "QuickConnect initiated successfully")
+                        quickConnectSecret = result.data.Secret
+                        onQuickConnectSecretChange(result.data.Secret)
+                        onQuickConnectCodeChange(result.data.Code.formatCode())
+                        onIsPollingChange(true)
+                        onAuthenticatingChange(false)
+                    }
+                    result.error != null -> {
+                        val errorMsg = when (result.error) {
+                            is QuickConnectError.ConnectionError -> result.error.message
+                            is QuickConnectError.ServerError -> result.error.message
+                            is QuickConnectError.UnknownError -> result.error.message
+                            is QuickConnectError.Unavailable -> "QuickConnect is not available on this server. Please ensure QuickConnect is enabled in server settings."
+                        }
+                        android.util.Log.w("QuickConnectLogin", "QuickConnect error: $errorMsg")
+                        onIsUnavailableChange(true)
+                        onError(errorMsg)
+                        onAuthenticatingChange(false)
+                    }
+                    else -> {
+                        android.util.Log.w("QuickConnectLogin", "QuickConnect error: Unknown error")
+                        onIsUnavailableChange(true)
+                        onError("Failed to connect. Please check your server address and network connection.")
+                        onAuthenticatingChange(false)
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("QuickConnectLogin", "Exception during QuickConnect initiation", e)
+                onIsUnavailableChange(true)
+                val errorMsg = when {
+                    e is java.net.ConnectException -> "Cannot connect to server. Please check:\n• Server is running\n• IP address is correct\n• TV is on the same network"
+                    e is java.net.SocketTimeoutException -> "Connection timeout. Server is not responding."
+                    e is java.net.UnknownHostException -> "Cannot resolve server address. Please check the IP address."
+                    else -> "Error: ${e.message ?: e.javaClass.simpleName}"
+                }
+                onError(errorMsg)
+                onAuthenticatingChange(false)
+            }
+        }
+    }
+
+    // Poll for QuickConnect status
+    LaunchedEffect(isPolling, quickConnectSecret) {
+        if (!isPolling || quickConnectSecret == null) return@LaunchedEffect
+        
+        android.util.Log.d("QuickConnectLogin", "Starting QuickConnect polling with secret: ${quickConnectSecret?.take(10)}...")
+        
+        while (isPolling && quickConnectSecret != null) {
+            delay(5000) // Poll every 5 seconds
+            
+            if (!isPolling) {
+                android.util.Log.d("QuickConnectLogin", "Polling stopped (isPolling=false)")
+                break
+            }
+            
+            try {
+                val trimmedUrl = serverUrl.trim().removeSuffix("/")
+                val quickConnectService = QuickConnectService(trimmedUrl, context)
+                val state = quickConnectService.getQuickConnectState(quickConnectSecret!!)
+                
+                if (state != null) {
+                    android.util.Log.d("QuickConnectLogin", "Poll response: Authenticated=${state.Authenticated}, Code=${state.Code}")
+                    
+                    if (state.Authenticated) {
+                        // User has authorized - now get the access token via authenticateWithQuickConnect
+                        android.util.Log.d("QuickConnectLogin", "✅ User authorized! Getting access token...")
+                        
+                        // Stop polling first
+                        onIsPollingChange(false)
+                        onAuthenticatingChange(true)
+                        
+                        // Normalize the URL before saving (add protocol and port if missing)
+                        val normalizedUrl = normalizeServerUrl(trimmedUrl)
+                        
+                        // Use a separate coroutine scope for authentication to avoid cancellation
+                        // Launch in authScope which won't be cancelled when LaunchedEffect recomposes
+                        authScope.launch {
+                            try {
+                                // Call authenticateWithQuickConnect to get the access token
+                                val authResult = quickConnectService.authenticateWithQuickConnect(quickConnectSecret!!)
+                                
+                                if (authResult != null) {
+                                    android.util.Log.d("QuickConnectLogin", "✅ QuickConnect authentication successful! AccessToken: ${authResult.AccessToken.take(20)}..., UserId: ${authResult.User.Id}, UserName: ${authResult.User.Name}")
+                                    
+                                    config.serverUrl = normalizedUrl
+                                    config.accessToken = authResult.AccessToken
+                                    config.userId = authResult.User.Id
+                                    
+                                    // Store device ID
+                                    val deviceId = try {
+                                        android.provider.Settings.Secure.getString(
+                                            context.contentResolver,
+                                            android.provider.Settings.Secure.ANDROID_ID
+                                        ) ?: "56be65b97eb43eca"
+                                    } catch (e: Exception) {
+                                        "56be65b97eb43eca"
+                                    }
+                                    config.deviceId = deviceId
+                                    
+                                    android.util.Log.d("QuickConnectLogin", "✅ Configuration saved: serverUrl=${config.serverUrl}, userId=${config.userId}, deviceId=$deviceId")
+                                    
+                                    onSuccess()
+                                } else {
+                                    android.util.Log.e("QuickConnectLogin", "❌ Failed to get access token from authenticateWithQuickConnect")
+                                    onError("Failed to authenticate with QuickConnect. Please try again.")
+                                    onAuthenticatingChange(false)
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("QuickConnectLogin", "Exception during QuickConnect authentication", e)
+                                onError("Error authenticating: ${e.message ?: e.javaClass.simpleName}")
+                                onAuthenticatingChange(false)
+                            }
+                        }
+                        
+                        // Exit the polling loop
+                        break
+                    } else {
+                        // Still waiting - update code if it changed
+                        state.Code?.let { code ->
+                            val formattedCode = code.formatCode()
+                            if (formattedCode != quickConnectCode) {
+                                android.util.Log.d("QuickConnectLogin", "Code updated: $formattedCode")
+                                onQuickConnectCodeChange(formattedCode)
+                            }
+                        }
+                        android.util.Log.d("QuickConnectLogin", "Still waiting for authentication... (Authenticated=${state.Authenticated})")
+                    }
+                } else {
+                    android.util.Log.w("QuickConnectLogin", "Poll returned null state - may indicate error or server issue")
+                    // Continue polling - null might be temporary
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("QuickConnectLogin", "Exception during QuickConnect polling", e)
+                onIsPollingChange(false)
+                onError("Error polling QuickConnect: ${e.message ?: e.javaClass.simpleName}")
+                break
+            }
+        }
+        
+        android.util.Log.d("QuickConnectLogin", "Polling loop ended")
+    }
+
+    val isTv = remember(context) { DeviceUtils.isTvDevice(context) }
+
+    val content = @Composable {
+        // Instructions
+        Text(
+            text = "Step 1: Open the Jellyfin app on your phone or browser",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = "Step 2: Navigate to Quick Connect in user settings",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = "Step 3: Enter the code below",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        // Code box on the left side
+        QuickConnectCodeBox(
+            quickConnectCode = quickConnectCode,
+            isUnavailable = isUnavailable,
+            isPolling = isPolling
+        )
+
+        if (isPolling && quickConnectCode != null) {
+            Text(
+                text = "Waiting for authorization...",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+
+        if (errorMessage != null) {
+            Text(
+                text = errorMessage,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+    }
+
+    if (isTv) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            // Left side: Instructions and code box
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                content()
+            }
+        }
+    } else {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun QuickConnectCodeBox(
+    quickConnectCode: String?,
+    isUnavailable: Boolean,
+    isPolling: Boolean
+) {
+    if (quickConnectCode != null) {
+        Box(
+            modifier = Modifier
+                .width(300.dp)
+                .height(120.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(8.dp)
+                )
+                .padding(horizontal = 32.dp, vertical = 24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = quickConnectCode ?: "",
+                style = MaterialTheme.typography.displayMedium.copy(
+                    fontSize = MaterialTheme.typography.displayMedium.fontSize * 0.6f // 40% smaller
+                ),
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                maxLines = 1
+            )
+        }
+    } else if (isUnavailable) {
+        Text(
+            text = "QuickConnect unavailable",
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(vertical = 16.dp)
+        )
+    } else {
+        Box(
+            modifier = Modifier
+                .width(300.dp)
+                .height(120.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(8.dp)
+                )
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Initializing...",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun String.formatCode(): String {
+    return buildString {
+        this@formatCode.forEachIndexed { index, character ->
+            if (index != 0 && index % 3 == 0) append(" ")
+            append(character)
+        }
+    }
+}
+
+/**
+ * Normalize the server URL.
+ * The URL should already be properly formatted by ServerDiscovery,
+ * so we just clean it up (remove trailing slash).
+ * 
+ * DO NOT add default ports - reverse proxies use standard ports (80/443).
+ */
+private fun normalizeServerUrl(url: String): String {
+    return url.trim().removeSuffix("/")
+}
+
+private fun performCredentialsLogin(
+    serverUrl: String,
+    username: String,
+    password: String,
+    config: JellyfinConfig,
+    context: android.content.Context,
+    onSuccess: () -> Unit,
+    onError: (String) -> Unit
+) {
+    val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main)
+    scope.launch {
+        try {
+            if (serverUrl.isBlank() || username.isBlank() || password.isBlank()) {
+                onError("Please fill in all fields")
+                return@launch
+            }
+
+            val trimmedUrl = serverUrl.trim().removeSuffix("/")
+            val authService = JellyfinAuthService(trimmedUrl, context)
+            val authResponse = authService.authenticate(username.trim(), password.trim())
+
+            if (authResponse != null) {
+                config.serverUrl = trimmedUrl
+                config.username = username.trim()
+                config.password = password.trim()
+                config.accessToken = authResponse.AccessToken
+                config.userId = authResponse.User.Id
+                // Store DeviceId used during authentication
+                val deviceId = try {
+                    android.provider.Settings.Secure.getString(
+                        context.contentResolver,
+                        android.provider.Settings.Secure.ANDROID_ID
+                    ) ?: "56be65b97eb43eca"
+                } catch (e: Exception) {
+                    "56be65b97eb43eca"
+                }
+                config.deviceId = deviceId
+                onSuccess()
+            } else {
+                onError("Authentication failed. Please check your credentials.")
+            }
+        } catch (e: Exception) {
+            onError("Error: ${e.message ?: e.javaClass.simpleName}")
+        }
+    }
+}
