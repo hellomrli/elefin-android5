@@ -1,19 +1,19 @@
 <resources>
     <string name="app_name">Elefin</string>
     <string name="browse_title">Elefin</string>
-    <string name="related_movies">Related Videos</string>
-    <string name="grid_view">Grid View</string>
-    <string name="error_fragment">Error Fragment</string>
-    <string name="personal_settings">Personal Settings</string>
-    <string name="watch_trailer_1">Watch trailer</string>
-    <string name="watch_trailer_2">FREE</string>
-    <string name="rent_1">Rent By Day</string>
-    <string name="rent_2">From $1.99</string>
-    <string name="buy_1">Buy and Own</string>
-    <string name="buy_2">AT $9.99</string>
-    <string name="movie">Movie</string>
+    <string name="related_movies">相关视频</string>
+    <string name="grid_view">网格视图</string>
+    <string name="error_fragment">错误</string>
+    <string name="personal_settings">个人设置</string>
+    <string name="watch_trailer_1">观看预告片</string>
+    <string name="watch_trailer_2">免费</string>
+    <string name="rent_1">按天租赁</string>
+    <string name="rent_2">$1.99 起</string>
+    <string name="buy_1">购买并拥有</string>
+    <string name="buy_2">$9.99</string>
+    <string name="movie">电影</string>
 
     <!-- Error messages -->
-    <string name="error_fragment_message">An error occurred</string>
-    <string name="dismiss_error">Dismiss</string>
+    <string name="error_fragment_message">发生错误</string>
+    <string name="dismiss_error">关闭</string>
 </resources>

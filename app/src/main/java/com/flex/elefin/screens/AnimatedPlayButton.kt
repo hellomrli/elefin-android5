@@ -46,7 +46,7 @@ import com.airbnb.lottie.compose.animateLottieCompositionAsState
 fun AnimatedPlayButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    label: String = "Play",
+    label: String = "播放",
     icon: ImageVector = Icons.Default.PlayArrow,
     size: androidx.compose.ui.unit.Dp = 85.dp, // Match current button size (100 * 0.85)
     iconSize: androidx.compose.ui.unit.Dp = 20.4.dp, // Match current icon size

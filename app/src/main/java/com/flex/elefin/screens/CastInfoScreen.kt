@@ -286,7 +286,7 @@ fun CastInfoScreen(
                 if (movies.isNotEmpty()) {
                     item {
                         Text(
-                            text = "Movies",
+                            text = "电影",
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.SemiBold,
@@ -317,7 +317,7 @@ fun CastInfoScreen(
                 }
 
                 // TV Shows section
-                val tvShows = filmography.filter { it.Type == "Series" }
+                val tvShows = filmography.filter { it.Type == "Episode" }
                 if (tvShows.isNotEmpty()) {
                     item {
                         Text(

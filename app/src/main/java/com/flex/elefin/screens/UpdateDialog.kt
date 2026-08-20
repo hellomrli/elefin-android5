@@ -172,12 +172,12 @@ fun UpdateDialog(
                                                 isDownloading = false
                                             }
                                         } else {
-                                            downloadError = "Download failed"
+                                            downloadError = "下载失败"
                                             isDownloading = false
                                         }
                                     } catch (e: Exception) {
                                         Log.e("UpdateDialog", "Error downloading APK", e)
-                                        downloadError = "Download failed: ${e.message}"
+                                        downloadError = "下载失败：${e.message}"
                                         isDownloading = false
                                     }
                                 }
@@ -191,7 +191,7 @@ fun UpdateDialog(
                                 enabled = !isDownloading
                             ) {
                                 Text(
-                                    text = if (isDownloading) "Downloading..." else "Update Now",
+                                    text = if (isDownloading) "正在下载..." else "立即更新",
                                     style = MaterialTheme.typography.labelLarge.copy(
                                         fontWeight = FontWeight.Bold
                                     )
@@ -204,7 +204,7 @@ fun UpdateDialog(
                                 enabled = !isDownloading
                             ) {
                                 Text(
-                                    text = "Later",
+                                    text = "稍后",
                                     style = MaterialTheme.typography.labelLarge.copy(
                                         fontWeight = FontWeight.Bold
                                     )
@@ -217,7 +217,7 @@ fun UpdateDialog(
                                 enabled = !isDownloading
                             ) {
                                 androidx.compose.material3.Text(
-                                    text = if (isDownloading) "Downloading..." else "Update Now",
+                                    text = if (isDownloading) "正在下载..." else "立即更新",
                                     style = androidx.compose.material3.MaterialTheme.typography.labelLarge.copy(
                                         fontWeight = FontWeight.Bold
                                     )
@@ -230,7 +230,7 @@ fun UpdateDialog(
                                 enabled = !isDownloading
                             ) {
                                 androidx.compose.material3.Text(
-                                    text = "Later",
+                                    text = "稍后",
                                     style = androidx.compose.material3.MaterialTheme.typography.labelLarge.copy(
                                         fontWeight = FontWeight.Bold
                                     )

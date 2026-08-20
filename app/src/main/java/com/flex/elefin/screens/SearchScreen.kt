@@ -192,12 +192,12 @@ fun SearchScreen(
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back"
+                    contentDescription = "返回"
                 )
             }
             
             Text(
-                text = "Search",
+                text = "搜索",
                 style = MaterialTheme.typography.headlineLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(start = 16.dp)
@@ -304,7 +304,7 @@ fun SearchScreen(
             ) {
                 Icon(
                     imageVector = Icons.Default.Mic,
-                    contentDescription = "Voice Search",
+                    contentDescription = "语音搜索",
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -321,7 +321,7 @@ fun SearchScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Searching...",
+                    text = "搜索中...",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -334,7 +334,7 @@ fun SearchScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Enter a search term or use voice search",
+                    text = "输入搜索词或使用语音搜索",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
@@ -347,7 +347,7 @@ fun SearchScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "No results found",
+                    text = "未找到结果",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
@@ -411,7 +411,7 @@ fun SearchScreen(
                                     onFocusChanged = { },
                                     enableCaching = true,
                                     reducePosterResolution = false,
-                                    unwatchedEpisodeCount = if (item.Type == "Series") item.UserData?.UnplayedItemCount else null,
+                                    unwatchedEpisodeCount = if (item.Type == "Episode") item.UserData?.UnplayedItemCount else null,
                                     externalImageUrl = externalImageUrl
                                 )
                                 // Item name below the card (same style as home screen)
@@ -490,7 +490,7 @@ private suspend fun performSearch(
                                 // Ideally we check against jellyfin results, but we are running in parallel.
                                 // We'll deduplicate after.
                                 
-                                val mediaType = if (result.mediaType == "tv") "Series" else "Movie"
+                                val mediaType = if (result.mediaType == "tv") "剧集" else "电影"
                                 val posterUrl = com.flex.elefin.jellyseerr.JellyseerrImageUrl.poster(result.posterPath)
                                 
                                 // Create a JellyfinItem structure for the Jellyseerr result

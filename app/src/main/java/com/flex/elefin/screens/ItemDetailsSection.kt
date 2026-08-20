@@ -49,7 +49,7 @@ fun TitleOrLogo(
     val useLogo = settings.useLogoForTitle
     
     // Check for item's own logo first
-    val itemLogoTag = item.ImageTags?.get("Logo")
+    val itemLogoTag = item.ImageTags?.get("标志")
     
     // For episodes, use the SeriesId to fetch the series logo if the episode doesn't have one
     val isEpisode = item.Type == "Episode"
@@ -78,7 +78,7 @@ fun TitleOrLogo(
         ) {
             AsyncImage(
                 model = ImageRequest.Builder(context)
-                    .data(apiService.getImageUrl(logoItemId, "Logo", logoTag))
+                    .data(apiService.getImageUrl(logoItemId, "标志", logoTag))
                     .headers(apiService.getImageRequestHeaders())
                     .build(),
                 contentDescription = item.Name,

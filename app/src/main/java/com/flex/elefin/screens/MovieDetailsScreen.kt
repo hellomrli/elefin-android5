@@ -183,7 +183,7 @@ fun MovieDetailsScreen(
                     // Ignore cancellation exceptions - they're expected when composition changes
                     throw e // Re-throw to properly handle cancellation
                 } catch (e: Exception) {
-                    Log.e("MovieDetailsScreen", "Error fetching item details", e)
+                    Log.e("MovieDetailsScreen", "获取影片详情失败", e)
                     isLoading = false
                 }
             }
@@ -468,7 +468,7 @@ fun TopContainer(
                             val codec = stream.Codec?.uppercase() ?: ""
                             val channelLayout = stream.ChannelLayout ?: ""
                             
-                            // Format as "Language (CODEC CHANNEL)" or "Language (CODEC)" or just "Language"
+                            // Format as "Language (CODEC CHANNEL)" or "Language (CODEC)" or just "语言"
                             val audioText = when {
                                 codec.isNotEmpty() && channelLayout.isNotEmpty() && language.isNotEmpty() -> {
                                     "$language ($codec $channelLayout)"
@@ -491,7 +491,7 @@ fun TopContainer(
                         val isWatched = (displayItemForMetadata.UserData?.Played == true) ||
                                        (displayItemForMetadata.UserData?.PlayedPercentage == 100.0)
                         if (isWatched) {
-                            MetadataBox(text = "Watched")
+                            MetadataBox(text = "已观看")
                         }
                     }
                 )
@@ -523,8 +523,8 @@ fun BottomContainer(
     showDebugOutlines: Boolean = false
 ) {
     val context = LocalContext.current
-    // Get cast members (People with Type == "Actor")
-    val castMembers = item.People?.filter { it.Type == "Actor" } ?: emptyList()
+    // Get cast members (People with Type == "演员")
+    val castMembers = item.People?.filter { it.Type == "演员" } ?: emptyList()
     val firstGenre = item.Genres?.firstOrNull()
     val firstCastMember = castMembers.firstOrNull()
     
@@ -596,7 +596,7 @@ fun BottomContainer(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "Cast",
+                        text = "演员",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -625,7 +625,7 @@ fun BottomContainer(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "Chapters",
+                        text = "章节",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -677,7 +677,7 @@ fun BottomContainer(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "Similar Movies",
+                        text = "类似电影",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -712,7 +712,7 @@ fun BottomContainer(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "More Movies with ${firstCastMember.Name}",
+                        text = "更多 ${firstCastMember.Name} 的电影",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -887,7 +887,7 @@ fun ChapterCard(
                                     .headers(headerMap)
                                     .crossfade(true)
                                     .build(),
-                                contentDescription = chapter.Name ?: "Chapter ${chapterIndex + 1}",
+                                contentDescription = chapter.Name ?: "第 ${chapterIndex + 1} 章",
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .clip(RoundedCornerShape(8.dp)),
@@ -938,7 +938,7 @@ fun ChapterCard(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.PlayArrow,
-                                contentDescription = "Play from chapter",
+                                contentDescription = "从章节播放",
                                 modifier = Modifier.size(24.dp),
                                 tint = Color.White
                             )
@@ -951,7 +951,7 @@ fun ChapterCard(
         
         // Chapter name below the card
         Text(
-            text = chapter.Name ?: "Chapter ${chapterIndex + 1}",
+            text = chapter.Name ?: "第 ${chapterIndex + 1} 章",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
             maxLines = 2,
@@ -1020,7 +1020,7 @@ fun SubtitleSelectionDialog(
                     // Normal cancellation when composable leaves composition - don't log as error
                     throw e // Re-throw to respect cancellation
                 } catch (e: Exception) {
-                    Log.e("SubtitleDialog", "Error fetching item details", e)
+                    Log.e("SubtitleDialog", "获取影片详情失败", e)
                     isLoadingSubtitles = false
                 }
             }
@@ -1063,7 +1063,7 @@ fun SubtitleSelectionDialog(
                 ) {
                     // Dialog title - 30% smaller
                     Text(
-                        text = "Select Subtitles",
+                        text = "选择字幕",
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.7f
                         ),
@@ -1090,7 +1090,7 @@ fun SubtitleSelectionDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Loading subtitles...",
+                                text = "正在加载字幕...",
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.7f
                                 ),
@@ -1102,7 +1102,7 @@ fun SubtitleSelectionDialog(
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                             contentPadding = PaddingValues(vertical = 4.dp)
                         ) {
-                            // "None" option to disable subtitles
+                            // "无" option to disable subtitles
                             item {
                                 ListItem(
                                     selected = false,
@@ -1113,7 +1113,7 @@ fun SubtitleSelectionDialog(
                                     colors = listItemColors,
                                     headlineContent = {
                                         Text(
-                                            text = "None (Off)",
+                                            text = "无（关闭）",
                                             style = MaterialTheme.typography.bodyLarge.copy(
                                                 fontSize = MaterialTheme.typography.bodyLarge.fontSize * 0.7f
                                             )
@@ -1127,16 +1127,16 @@ fun SubtitleSelectionDialog(
                             items(subtitleStreams) { stream ->
                                 val subtitleTitle = stream.DisplayTitle
                                     ?: stream.Language
-                                    ?: "Unknown"
+                                    ?: "未知"
                                 val subtitleInfo = buildString {
-                                    if (stream.IsDefault == true) append("Default")
+                                    if (stream.IsDefault == true) append("默认")
                                     if (stream.IsForced == true) {
                                         if (isNotEmpty()) append(", ")
-                                        append("Forced")
+                                        append("强制")
                                     }
                                     if (stream.IsExternal == true) {
                                         if (isNotEmpty()) append(", ")
-                                        append("External")
+                                        append("外部")
                                     }
                                 }
                                 
@@ -1176,7 +1176,7 @@ fun SubtitleSelectionDialog(
                             if (subtitleStreams.isEmpty() && downloadedSubtitles.isEmpty()) {
                                 item {
                                     Text(
-                                        text = "No subtitles available",
+                                        text = "没有可用字幕",
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.7f
                                         ),
@@ -1191,7 +1191,7 @@ fun SubtitleSelectionDialog(
                                 item {
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        text = "Downloaded Subtitles",
+                                        text = "已下载字幕",
                                         style = MaterialTheme.typography.labelMedium.copy(
                                             fontSize = MaterialTheme.typography.labelMedium.fontSize * 0.8f
                                         ),
@@ -1267,7 +1267,7 @@ fun SubtitleSelectionDialog(
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "Download Subtitles",
+                                        text = "下载字幕",
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.8f
                                         )
@@ -1302,7 +1302,7 @@ fun SubtitleSelectionDialog(
                             language = language
                         )
                     } catch (e: Exception) {
-                        Log.e("SubtitleDialog", "Error searching subtitles", e)
+                        Log.e("SubtitleDialog", "搜索字幕失败", e)
                         searchResults = emptyList()
                     } finally {
                         isSearching = false
@@ -1333,7 +1333,7 @@ fun SubtitleSelectionDialog(
             onSelect = { subtitle ->
                 showSearchResults = false
                 isDownloading = true
-                downloadingSubtitleName = subtitle.attributes.release ?: "Subtitle"
+                downloadingSubtitleName = subtitle.attributes.release ?: "字幕"
                 
                 // Download the subtitle
                 scope.launch {
@@ -1354,12 +1354,12 @@ fun SubtitleSelectionDialog(
                         } else {
                             // Show error toast
                             val errorMsg = com.flex.elefin.subtitles.OpenSubtitlesApi.lastError 
-                                ?: "Download failed"
+                                ?: "下载失败"
                             android.widget.Toast.makeText(context, errorMsg, android.widget.Toast.LENGTH_LONG).show()
                         }
                     } catch (e: Exception) {
-                        Log.e("SubtitleDialog", "Error downloading subtitle", e)
-                        android.widget.Toast.makeText(context, "Download failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                        Log.e("SubtitleDialog", "下载字幕失败", e)
+                        android.widget.Toast.makeText(context, "下载失败：${e.message}", android.widget.Toast.LENGTH_LONG).show()
                     } finally {
                         isDownloading = false
                     }
@@ -1404,7 +1404,7 @@ fun AudioSelectionDialog(
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Log.e("AudioDialog", "Error fetching item details", e)
+                    Log.e("AudioDialog", "获取影片详情失败", e)
                     isLoadingAudio = false
                 }
             }
@@ -1455,7 +1455,7 @@ fun AudioSelectionDialog(
                 ) {
                     // Dialog title
                     Text(
-                        text = "Select Audio Track",
+                        text = "选择音轨",
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.7f
                         ),
@@ -1482,7 +1482,7 @@ fun AudioSelectionDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Loading audio tracks...",
+                                text = "正在加载音轨...",
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.7f
                                 ),
@@ -1498,7 +1498,7 @@ fun AudioSelectionDialog(
                             items(audioStreams) { stream ->
                                 val audioTitle = stream.DisplayTitle
                                     ?: stream.Language
-                                    ?: "Unknown"
+                                    ?: "未知"
                                 val audioInfo = buildString {
                                     stream.Codec?.let { 
                                         append(it)
@@ -1548,7 +1548,7 @@ fun AudioSelectionDialog(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = "No audio tracks available",
+                                            text = "没有可用音轨",
                                             style = MaterialTheme.typography.bodyMedium.copy(
                                                 fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.7f
                                             ),
@@ -1628,7 +1628,7 @@ fun ActionButtonsRow(
                          Log.d("ActionButtonsRow", "Fetching videos for ID: $tmdbId (Language: $iso639Code)")
                          val videos = TmdbApiService.getVideos(
                              tmdbId = tmdbId.toInt(),
-                             type = if (displayItem.Type == "Series" || displayItem.Type == "Season" || displayItem.Type == "Episode") "tv" else "movie",
+                             type = if (displayItem.Type == "Episode" || displayItem.Type == "Season" || displayItem.Type == "Episode") "tv" else "movie",
                              apiKey = settings.tmdbApiKey,
                              language = iso639Code
                          )
@@ -1686,7 +1686,7 @@ fun ActionButtonsRow(
         selectedAudioIndex = settings.getAudioPreference(item.Id)
     }
     
-    // Change label to "Play From Start" when there's a resume button
+    // Change label to "从头播放" when there's a resume button
     // Calculate default subtitle/audio indices if none selected
     val defaultSubtitleIndex = null
     
@@ -1696,7 +1696,7 @@ fun ActionButtonsRow(
         }
     }
     
-    val playButtonLabel = if (isResumable) "Play From Start" else "Play"
+    val playButtonLabel = if (isResumable) "从头播放" else "播放"
     
     Row(
         modifier = modifier
@@ -1741,7 +1741,7 @@ fun ActionButtonsRow(
                         context.startActivity(intent)
                         // Don't finish - let back button return to movie details screen
                     },
-                    label = "Resume",
+                    label = "继续播放",
                     containerColor = androidx.compose.ui.graphics.Color.White,
                     contentColor = androidx.compose.ui.graphics.Color.Black,
                     modifier = Modifier.focusRequester(resumeFocusRequester)
@@ -1792,13 +1792,13 @@ fun ActionButtonsRow(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
-                        contentDescription = "Resume",
+                        contentDescription = "继续播放",
                         modifier = Modifier.size(14.3.dp)
                     )
                     if (resumeFocused) {
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Resume",
+                            text = "继续播放",
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
                             ),
@@ -1874,7 +1874,7 @@ fun ActionButtonsRow(
             ) {
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
-                    contentDescription = "Play",
+                    contentDescription = "播放",
                     modifier = Modifier.size(14.3.dp)
                 )
                 if (playFocused) {
@@ -1939,13 +1939,13 @@ fun ActionButtonsRow(
         ) {
             Icon(
                 imageVector = Icons.Default.VolumeUp,
-                contentDescription = "Audio Track",
+                contentDescription = "音轨",
                 modifier = Modifier.size(14.3.dp)
             )
             if (audioFocused) {
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Audio",
+                    text = "音频",
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
                     ),
@@ -1991,13 +1991,13 @@ fun ActionButtonsRow(
         ) {
             Icon(
                 imageVector = Icons.Default.Language,
-                contentDescription = "Subtitles",
+                contentDescription = "字幕",
                 modifier = Modifier.size(14.3.dp)
             )
             if (subtitleFocused) {
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Subtitles",
+                    text = "字幕",
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
                     ),
@@ -2019,7 +2019,7 @@ fun ActionButtonsRow(
                     // Prompt user to enter TMDB key
                     android.widget.Toast.makeText(
                         context,
-                        "Please enter your TMDB API key in settings to enable trailers",
+                        "请在设置中输入 TMDB API 密钥以启用预告片",
                         android.widget.Toast.LENGTH_LONG
                     ).show()
                     onShowSettings()
@@ -2054,13 +2054,13 @@ fun ActionButtonsRow(
         ) {
             Icon(
                 imageVector = Icons.Default.Movie,
-                contentDescription = "Watch Trailer",
+                contentDescription = "观看预告片",
                 modifier = Modifier.size(14.3.dp)
             )
             if (trailerFocused) {
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Watch Trailer",
+                    text = "观看预告片",
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
                     ),
@@ -2140,13 +2140,13 @@ fun ActionButtonsRow(
         ) {
             Icon(
                 imageVector = Icons.Default.Check,
-                contentDescription = if (isAlreadyWatched) "Mark As Unwatched" else "Mark As Watched",
+                contentDescription = if (isAlreadyWatched) "标记为未观看" else "标记为已观看",
                 modifier = Modifier.size(14.3.dp)
             )
             if (watchedFocused) {
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (isAlreadyWatched) "Mark As Unwatched" else "Mark As Watched",
+                    text = if (isAlreadyWatched) "标记为未观看" else "标记为已观看",
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
                     )
@@ -2167,7 +2167,7 @@ fun ActionButtonsRow(
                 val subtitleStream = displayItem.MediaSources?.firstOrNull()?.MediaStreams
                     ?.find { it.Type == "Subtitle" && it.Index == selectedSubtitleIndex }
                 subtitleStream?.let { stream ->
-                    val subtitleName = stream.DisplayTitle ?: stream.Language ?: "Unknown"
+                    val subtitleName = stream.DisplayTitle ?: stream.Language ?: "未知"
                     MetadataBox(text = subtitleName, icon = Icons.Default.Language)
                 }
             }

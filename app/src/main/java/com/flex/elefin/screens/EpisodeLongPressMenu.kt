@@ -61,7 +61,7 @@ fun EpisodeLongPressMenu(
                     // Ignore cancellation exceptions - they're expected when composition changes
                     throw e // Re-throw to properly handle cancellation
                 } catch (e: Exception) {
-                    Log.e("EpisodeLongPressMenu", "Error fetching item details", e)
+                    Log.e("EpisodeLongPressMenu", "获取影片详情失败", e)
                     isLoadingSubtitles = false
                 }
             }
@@ -106,7 +106,7 @@ fun EpisodeLongPressMenu(
                 ) {
                     // Episode title
                     Text(
-                        text = episode.Name ?: "Episode",
+                        text = episode.Name ?: "剧集",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -145,7 +145,7 @@ fun SubtitleSelectorContentVertical(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "Loading subtitles...",
+                text = "正在加载字幕...",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
@@ -156,7 +156,7 @@ fun SubtitleSelectorContentVertical(
             contentPadding = PaddingValues(vertical = 4.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            // "None" option to disable subtitles
+            // "无" option to disable subtitles
             item {
                 ListItem(
                     selected = storedSubtitleIndex == null,
@@ -166,7 +166,7 @@ fun SubtitleSelectorContentVertical(
                     },
                     headlineContent = {
                         Text(
-                            text = "None (Off)",
+                            text = "无（关闭）",
                             style = MaterialTheme.typography.bodyMedium
                         )
                     },
@@ -178,16 +178,16 @@ fun SubtitleSelectorContentVertical(
             items(subtitleStreams) { stream ->
                 val subtitleTitle = stream.DisplayTitle
                     ?: stream.Language
-                    ?: "Unknown"
+                    ?: "未知"
                 val subtitleInfo = buildString {
-                    if (stream.IsDefault == true) append("Default")
+                    if (stream.IsDefault == true) append("默认")
                     if (stream.IsForced == true) {
                         if (isNotEmpty()) append(", ")
-                        append("Forced")
+                        append("强制")
                     }
                     if (stream.IsExternal == true) {
                         if (isNotEmpty()) append(", ")
-                        append("External")
+                        append("外部")
                     }
                 }
                 val isSelected = stream.Index != null && stream.Index == storedSubtitleIndex
@@ -229,7 +229,7 @@ fun SubtitleSelectorContentVertical(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "No subtitles available",
+                            text = "没有可用字幕",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         )
@@ -243,5 +243,5 @@ fun SubtitleSelectorContentVertical(
 private fun getSubtitleName(subtitleStreams: List<com.flex.elefin.jellyfin.MediaStream>, index: Int): String {
     return subtitleStreams.find { it.Index == index }?.DisplayTitle
         ?: subtitleStreams.find { it.Index == index }?.Language
-        ?: "Unknown"
+        ?: "未知"
 }

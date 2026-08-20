@@ -113,7 +113,7 @@ class MpvTvPlayerActivity : ComponentActivity() {
             return
         }
         val headers = intent.getStringExtra(EXTRA_HEADERS) ?: ""
-        val title = intent.getStringExtra(EXTRA_TITLE) ?: "Video"
+        val title = intent.getStringExtra(EXTRA_TITLE) ?: "视频"
         val itemId = intent.getStringExtra(EXTRA_ITEM_ID) ?: ""
         val resumePositionMs = intent.getLongExtra(EXTRA_RESUME_MS, 0L)
         // Check for subtitle file in extras (passed by Launcher or other means)

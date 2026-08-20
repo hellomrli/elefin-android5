@@ -108,18 +108,18 @@ import androidx.core.content.FileProvider
 
 // Settings categories
 enum class SettingsCategory(val title: String, val icon: ImageVector) {
-    PLAYBACK("Playback", Icons.Default.PlayArrow),
-    VIDEO("Video", Icons.Default.Videocam),
-    SUBTITLES("Audio & Subtitles", Icons.Default.Subtitles),
-    APPEARANCE("Appearance", Icons.Default.Palette),
-    PERFORMANCE("Performance", Icons.Default.Speed),
-    LIBRARY("Library", Icons.Default.VideoLibrary),
-    ADVANCED("Advanced", Icons.Default.Settings),
-    UPDATES("Updates", Icons.Default.Update),
-    JELLYSEERR("Jellyseerr (Discover Content)", Icons.Default.Videocam),
-    TRAILERS("Trailers", Icons.Default.Movie),
-    ACCOUNT("Account", Icons.Default.Person),
-    COFFEE("Buy Me a Coffee", Icons.Filled.Favorite)
+    PLAYBACK("播放", Icons.Default.PlayArrow),
+    VIDEO("视频", Icons.Default.Videocam),
+    SUBTITLES("音频与字幕", Icons.Default.Subtitles),
+    APPEARANCE("外观", Icons.Default.Palette),
+    PERFORMANCE("性能", Icons.Default.Speed),
+    LIBRARY("媒体库", Icons.Default.VideoLibrary),
+    ADVANCED("高级", Icons.Default.Settings),
+    UPDATES("更新", Icons.Default.Update),
+    JELLYSEERR("Jellyseerr（发现内容）", Icons.Default.Videocam),
+    TRAILERS("预告片", Icons.Default.Movie),
+    ACCOUNT("账号", Icons.Default.Person),
+    COFFEE("请我喝杯咖啡", Icons.Filled.Favorite)
 }
 
 @OptIn(coil.annotation.ExperimentalCoilApi::class)
@@ -275,7 +275,7 @@ fun SettingsScreen(
                         SettingsCategory.PLAYBACK -> {
                             // MPV Player Toggle
                             SettingToggle(
-                                title = "Use MPV Player",
+                                title = "使用 MPV 播放器",
                                 description = "Use the integrated MPV player for better codec support (AV1, HEVC, HDR).",
                                 isEnabled = mpvEnabled,
                                 onToggle = {
@@ -288,7 +288,7 @@ fun SettingsScreen(
                             
                             // Skip Intro
                             SettingToggle(
-                                title = "Skip Intro",
+                                title = "跳过片头",
                                 description = "Show skip button during episode intros (requires Intro Skipper plugin)",
                                 isEnabled = skipIntroEnabled,
                                 onToggle = {
@@ -299,7 +299,7 @@ fun SettingsScreen(
                             
                             // Skip Credits
                             SettingToggle(
-                                title = "Skip Credits",
+                                title = "跳过片尾",
                                 description = "Show skip button during episode credits/outro",
                                 isEnabled = skipCreditsEnabled,
                                 onToggle = {
@@ -312,7 +312,7 @@ fun SettingsScreen(
                             
                             // Server-Side Transcoding Section Header
                             Text(
-                                text = "Server-Side Transcoding",
+                                text = "服务端转码",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -320,7 +320,7 @@ fun SettingsScreen(
                             
                             // Auto-transcode on playback error
                             SettingToggle(
-                                title = "Auto-Transcode on Error",
+                                title = "出错时自动转码",
                                 description = "Automatically retry with server transcoding when direct play fails",
                                 isEnabled = autoTranscodeOnError,
                                 onToggle = {
@@ -331,7 +331,7 @@ fun SettingsScreen(
                             
                             // Fallback to MPV player
                             SettingToggle(
-                                title = "Fallback to MPV Player",
+                                title = "回退到 MPV 播放器",
                                 description = if (isMpvInstalled) {
                                     "Use MPV when ExoPlayer fails and transcoding is disabled (MPV installed ✓)"
                                 } else {
@@ -346,7 +346,7 @@ fun SettingsScreen(
                             
                             // Server Transcoding Master Toggle
                             SettingToggle(
-                                title = "Always Transcode",
+                                title = "始终转码",
                                 description = "Always request server transcoding for selected codecs (AV1, HEVC)",
                                 isEnabled = serverTranscodingEnabled,
                                 onToggle = {
@@ -358,7 +358,7 @@ fun SettingsScreen(
                             if (serverTranscodingEnabled) {
                                 // Transcode AV1
                                 SettingToggle(
-                                    title = "Transcode AV1",
+                                    title = "转码 AV1",
                                     description = "Request transcoding for AV1 video (recommended for Shield TV)",
                                     isEnabled = transcodeAV1,
                                     onToggle = {
@@ -369,7 +369,7 @@ fun SettingsScreen(
                                 
                                 // Transcode HEVC
                                 SettingToggle(
-                                    title = "Transcode HEVC/H.265",
+                                    title = "转码 HEVC/H.265",
                                     description = "Request transcoding for HEVC video (only if device doesn't support it)",
                                     isEnabled = transcodeHEVC,
                                     onToggle = {
@@ -380,7 +380,7 @@ fun SettingsScreen(
                                 
                                 // Target Codec
                                 SettingCycle(
-                                    title = "Target Codec",
+                                    title = "目标编码",
                                     description = "Transcode to: ${transcodeTargetCodec.uppercase()}",
                                     currentValue = transcodeTargetCodec.uppercase(),
                                     onCycle = {
@@ -391,7 +391,7 @@ fun SettingsScreen(
                                 
                                 // Max Bitrate
                                 SettingSlider(
-                                    title = "Max Video Bitrate",
+                                    title = "最大视频码率",
                                     description = "${transcodeMaxBitrate} Mbps (higher = better quality)",
                                     onDecrease = {
                                         transcodeMaxBitrate = (transcodeMaxBitrate - 5).coerceAtLeast(5)
@@ -410,7 +410,7 @@ fun SettingsScreen(
                             
                             // Autoplay Next Episode
                             SettingToggle(
-                                title = "Autoplay Next Episode",
+                                title = "自动播放下一集",
                                 description = "Automatically play the next episode when the current one ends",
                                 isEnabled = autoplayNextEpisodeEnabled,
                                 onToggle = {
@@ -422,7 +422,7 @@ fun SettingsScreen(
                             // Autoplay Countdown Duration
                             if (autoplayNextEpisodeEnabled) {
                                 SettingCycle(
-                                    title = "Autoplay Countdown",
+                                    title = "自动播放倒计时",
                                     description = "Time before episode ends to show countdown (${autoplayCountdownSeconds}s)",
                                     currentValue = "${autoplayCountdownSeconds}s",
                                     onCycle = {
@@ -445,7 +445,7 @@ fun SettingsScreen(
                         SettingsCategory.VIDEO -> {
                             // ExoPlayer GL Enhancements
                             SettingToggle(
-                                title = "ExoPlayer GL Processing",
+                                title = "ExoPlayer GL 处理",
                                 description = "Use OpenGL for advanced video effects in ExoPlayer (HDR simulation, sharpening)",
                                 isEnabled = useGLEnhancements,
                                 onToggle = {
@@ -468,7 +468,7 @@ fun SettingsScreen(
                             // Dynamic Tone Mapping Toggle
                             var enableDynamicToneMapping by remember { mutableStateOf(settings.enableDynamicToneMapping) }
                             SettingToggle(
-                                title = "Enable Dynamic Tone Mapping",
+                                title = "启用动态色调映射",
                                 description = "Enable scene-aware HDR simulation (for HDR++ profile). Enhances contrast dynamically.",
                                 isEnabled = enableDynamicToneMapping,
                                 onToggle = {
@@ -478,7 +478,7 @@ fun SettingsScreen(
                             )
 
                             SettingCycle(
-                                title = "MPV Post-Processing",
+                                title = "MPV 后处理",
                                 description = "Apply shader profiles for MPV player (HDR-like effects, sharpening, etc.)",
                                 currentValue = com.flex.elefin.player.mpv.MpvShaderManager.ShaderProfile.fromString(mpvShaderProfile).displayName,
                                 onCycle = {
@@ -495,7 +495,7 @@ fun SettingsScreen(
                             if (useGLEnhancements) {
                                 // Fake HDR
                                 SettingToggle(
-                                    title = "Fake HDR",
+                                    title = "模拟 HDR",
                                     description = "Simulate HDR with tone mapping and brightness boost",
                                     isEnabled = enableFakeHDR,
                                     onToggle = {
@@ -506,7 +506,7 @@ fun SettingsScreen(
                                 
                                 if (enableFakeHDR) {
                                     SettingSlider(
-                                        title = "HDR Strength",
+                                        title = "HDR 强度",
                                         description = "Strength: %.1f (range: 1.0-2.0)".format(hdrStrength),
                                         onDecrease = {
                                             hdrStrength = (hdrStrength - 0.1f).coerceAtLeast(1.0f)
@@ -523,7 +523,7 @@ fun SettingsScreen(
                                 
                                 // Sharpening
                                 SettingToggle(
-                                    title = "Sharpening",
+                                    title = "锐化",
                                     description = "Enhance image sharpness using edge detection",
                                     isEnabled = enableSharpening,
                                     onToggle = {
@@ -534,7 +534,7 @@ fun SettingsScreen(
                                 
                                 if (enableSharpening) {
                                     SettingSlider(
-                                        title = "Sharpening Strength",
+                                        title = "锐化强度",
                                         description = "Strength: %.1f (range: 0.0-1.0)".format(sharpenStrength),
                                         onDecrease = {
                                             sharpenStrength = (sharpenStrength - 0.1f).coerceAtLeast(0.0f)
@@ -551,7 +551,7 @@ fun SettingsScreen(
                                 
                                 // Frame Blending
                                 SettingToggle(
-                                    title = "Frame Blending",
+                                    title = "帧混合",
                                     description = "Simulates smooth motion by blending frames (soap opera effect)",
                                     isEnabled = enableFrameBlending,
                                     onToggle = {
@@ -562,7 +562,7 @@ fun SettingsScreen(
                                 
                                 if (enableFrameBlending) {
                                     SettingSlider(
-                                        title = "Blend Strength",
+                                        title = "混合强度",
                                         description = "Strength: %.1f (range: 0.0-1.0)".format(frameBlendStrength),
                                         onDecrease = {
                                             frameBlendStrength = (frameBlendStrength - 0.1f).coerceAtLeast(0.0f)
@@ -583,7 +583,7 @@ fun SettingsScreen(
                         SettingsCategory.SUBTITLES -> {
                             // ExoPlayer Subtitle Text Size
                             SettingSlider(
-                                title = "Subtitle Text Size",
+                                title = "字幕文字大小",
                                 description = "Size: $exoSubtitleTextSize (range: 20-100)",
                                 onDecrease = {
                                     if (exoSubtitleTextSize > 20) {
@@ -603,7 +603,7 @@ fun SettingsScreen(
                             
                             // Subtitle Text Color
                             SettingButton(
-                                title = "Subtitle Text Color",
+                                title = "字幕文字颜色",
                                 description = "Choose subtitle text color",
                                 buttonText = "Choose Color",
                                 onClick = { showExoSubtitleColorDialog = true }
@@ -611,7 +611,7 @@ fun SettingsScreen(
                             
                             // Subtitle Background Transparency
                             SettingToggle(
-                                title = "Transparent Subtitle Background",
+                                title = "透明字幕背景",
                                 description = "Make subtitle background transparent or opaque",
                                 isEnabled = exoSubtitleBgTransparent,
                                 onToggle = {
@@ -625,7 +625,7 @@ fun SettingsScreen(
                             // Subtitle Background Color
                             if (!exoSubtitleBgTransparent) {
                                 SettingButton(
-                                    title = "Subtitle Background Color",
+                                    title = "字幕背景颜色",
                                     description = "Choose subtitle background color",
                                     buttonText = "Choose Color",
                                     onClick = { showExoSubtitleBgColorDialog = true }
@@ -636,12 +636,12 @@ fun SettingsScreen(
                             
                             // OpenSubtitles API Key
                             SettingButton(
-                                title = "OpenSubtitles API Key",
+                                title = "OpenSubtitles API 密钥",
                                 description = if (openSubtitlesApiKey.isNotBlank()) 
                                     "API key configured ✓" 
                                 else 
                                     "Required for subtitle downloads. Get free key at opensubtitles.com",
-                                buttonText = if (openSubtitlesApiKey.isNotBlank()) "Change" else "Set Key",
+                                buttonText = if (openSubtitlesApiKey.isNotBlank()) "更改" else "设置密钥",
                                 onClick = { showApiKeyDialog = true }
                             )
                             
@@ -649,7 +649,7 @@ fun SettingsScreen(
                                 var apiKeyInput by remember { mutableStateOf(openSubtitlesApiKey) }
                                 AlertDialog(
                                     onDismissRequest = { showApiKeyDialog = false },
-                                    title = { Text("OpenSubtitles API Key") },
+                                    title = { Text("OpenSubtitles API 密钥") },
                                     text = {
                                         Column {
                                             Text(
@@ -660,7 +660,7 @@ fun SettingsScreen(
                                             OutlinedTextField(
                                                 value = apiKeyInput,
                                                 onValueChange = { apiKeyInput = it },
-                                                label = { Text("API Key") },
+                                                label = { Text("API 密钥") },
                                                 singleLine = true,
                                                 modifier = Modifier.fillMaxWidth()
                                             )
@@ -674,24 +674,24 @@ fun SettingsScreen(
                                                 showApiKeyDialog = false
                                             }
                                         ) {
-                                            Text("Save")
+                                            Text("保存")
                                         }
                                     },
                                     dismissButton = {
                                         TextButton(onClick = { showApiKeyDialog = false }) {
-                                            Text("Cancel")
+                                            Text("取消")
                                         }
                                     }
                                 )
                             }
                             
                             SettingButton(
-                                title = "OpenSubtitles Login",
+                                title = "OpenSubtitles 登录",
                                 description = if (openSubtitlesUsername.isNotBlank()) 
                                     "Logged in as: $openSubtitlesUsername ✓" 
                                 else 
                                     "Required for downloading subtitles",
-                                buttonText = if (openSubtitlesUsername.isNotBlank()) "Change" else "Login",
+                                buttonText = if (openSubtitlesUsername.isNotBlank()) "更改" else "登录",
                                 onClick = { showLoginDialog = true }
                             )
                             
@@ -700,7 +700,7 @@ fun SettingsScreen(
                                 var passwordInput by remember { mutableStateOf(openSubtitlesPassword) }
                                 AlertDialog(
                                     onDismissRequest = { showLoginDialog = false },
-                                    title = { Text("OpenSubtitles Login") },
+                                    title = { Text("OpenSubtitles 登录") },
                                     text = {
                                         Column {
                                             Text(
@@ -711,7 +711,7 @@ fun SettingsScreen(
                                             OutlinedTextField(
                                                 value = usernameInput,
                                                 onValueChange = { usernameInput = it },
-                                                label = { Text("Username") },
+                                                label = { Text("用户名") },
                                                 singleLine = true,
                                                 modifier = Modifier.fillMaxWidth()
                                             )
@@ -719,7 +719,7 @@ fun SettingsScreen(
                                             OutlinedTextField(
                                                 value = passwordInput,
                                                 onValueChange = { passwordInput = it },
-                                                label = { Text("Password") },
+                                                label = { Text("密码") },
                                                 singleLine = true,
                                                 visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                                                 modifier = Modifier.fillMaxWidth()
@@ -736,12 +736,12 @@ fun SettingsScreen(
                                                 showLoginDialog = false
                                             }
                                         ) {
-                                            Text("Save")
+                                            Text("保存")
                                         }
                                     },
                                     dismissButton = {
                                         TextButton(onClick = { showLoginDialog = false }) {
-                                            Text("Cancel")
+                                            Text("取消")
                                         }
                                     }
                                 )
@@ -759,12 +759,12 @@ fun SettingsScreen(
                             }
                             
                             SettingButton(
-                                title = "Clear Downloaded Subtitles",
+                                title = "清除已下载字幕",
                                 description = if (downloadedSubtitlesCount > 0) 
                                     "$downloadedSubtitlesCount subtitle file(s) stored locally" 
                                 else 
                                     "No downloaded subtitles",
-                                buttonText = "Clear",
+                                buttonText = "清除",
                                 onClick = { showClearSubtitlesDialog = true }
                             )
                             
@@ -785,7 +785,7 @@ fun SettingsScreen(
                                                 val subtitlesDir = java.io.File(context.filesDir, "downloaded_subtitles")
                                                 if (subtitlesDir.exists()) {
                                                     subtitlesDir.deleteRecursively()
-                                                    android.util.Log.d("Settings", "Cleared all downloaded subtitles")
+                                                    android.util.Log.d("设置", "Cleared all downloaded subtitles")
                                                 }
                                                 downloadedSubtitlesCount = 0
                                                 showClearSubtitlesDialog = false
@@ -798,12 +798,12 @@ fun SettingsScreen(
                                                 ).show()
                                             }
                                         ) {
-                                            Text("Clear", color = MaterialTheme.colorScheme.error)
+                                            Text("清除", color = MaterialTheme.colorScheme.error)
                                         }
                                     },
                                     dismissButton = {
                                         TextButton(onClick = { showClearSubtitlesDialog = false }) {
-                                            Text("Cancel")
+                                            Text("取消")
                                         }
                                     }
                                 )
@@ -813,7 +813,7 @@ fun SettingsScreen(
                             
                             // Transcode AAC to AC3
                             SettingToggle(
-                                title = "Transcode AAC to AC3",
+                                title = "将 AAC 转码为 AC3",
                                 description = "Transcode all AAC audio to AC3 (5.1 max). AC3 is universally supported.",
                                 isEnabled = transcodeAacToAc3Enabled,
                                 onToggle = {
@@ -826,12 +826,12 @@ fun SettingsScreen(
                         SettingsCategory.JELLYSEERR -> {
                             // Jellyseerr URL
                             SettingButton(
-                                title = "Jellyseerr URL",
+                                title = "Jellyseerr 地址",
                                 description = if (jellyseerrUrl.isNotBlank()) 
                                     jellyseerrUrl
                                 else 
                                     "Set your Jellyseerr/Overseerr server URL",
-                                buttonText = if (jellyseerrUrl.isNotBlank()) "Change" else "Set URL",
+                                buttonText = if (jellyseerrUrl.isNotBlank()) "更改" else "Set URL",
                                 onClick = { showJellyseerrUrlDialog = true }
                             )
                             
@@ -853,14 +853,14 @@ fun SettingsScreen(
                                                 verticalArrangement = Arrangement.spacedBy(24.dp)
                                             ) {
                                                 Text(
-                                                    text = "Jellyseerr URL",
+                                                    text = "Jellyseerr 地址",
                                                     style = if (isTv) MaterialTheme.typography.headlineSmall else androidx.compose.material3.MaterialTheme.typography.titleLarge,
                                                     color = if (isTv) MaterialTheme.colorScheme.onSurface else androidx.compose.material3.MaterialTheme.colorScheme.onSurface
                                                 )
                                                 
                                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                                     Text(
-                                                        text = "Enter the full URL of your Jellyseerr instance (e.g., http://192.168.1.50:5055)",
+                                                        text = "请输入你的 Jellyseerr 完整地址（例如 http://192.168.1.50:5055）",
                                                         style = if (isTv) MaterialTheme.typography.bodyMedium else androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                                                         color = if (isTv) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f) else androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                                     )
@@ -868,7 +868,7 @@ fun SettingsScreen(
                                                     OutlinedTextField(
                                                          value = urlInput,
                                                          onValueChange = { urlInput = it },
-                                                         label = { Text("URL") },
+                                                         label = { Text("地址") },
                                                          placeholder = { Text("http://ip:port") },
                                                          singleLine = true,
                                                          modifier = Modifier.fillMaxWidth(),
@@ -898,7 +898,7 @@ fun SettingsScreen(
                                                                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                                                             )
                                                         ) {
-                                                            Text("Cancel")
+                                                            Text("取消")
                                                         }
                                                         
                                                         Button(
@@ -909,7 +909,7 @@ fun SettingsScreen(
                                                             },
                                                             modifier = Modifier.weight(1f)
                                                         ) {
-                                                            Text("Save")
+                                                            Text("保存")
                                                         }
                                                     } else {
                                                         androidx.compose.material3.Button(
@@ -919,7 +919,7 @@ fun SettingsScreen(
                                                                 containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
                                                             )
                                                         ) {
-                                                            androidx.compose.material3.Text("Cancel", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+                                                            androidx.compose.material3.Text("取消", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
                                                         }
                                                         
                                                         androidx.compose.material3.Button(
@@ -930,7 +930,7 @@ fun SettingsScreen(
                                                             },
                                                             modifier = Modifier.weight(1f)
                                                         ) {
-                                                            androidx.compose.material3.Text("Save")
+                                                            androidx.compose.material3.Text("保存")
                                                         }
                                                     }
                                                 }
@@ -964,16 +964,16 @@ fun SettingsScreen(
                             
                             // Authentication method toggle
                             SettingCycle(
-                                title = "Authentication Method",
+                                title = "认证方式",
                                 description = when (jellyseerrAuthType) {
-                                    "api_key" -> "Using API Key (recommended for admin access)"
-                                    "credentials" -> "Using Username/Password login"
+                                    "api_key" -> "使用 API 密钥（推荐管理员使用）"
+                                    "credentials" -> "使用用户名/密码登录"
                                     else -> "Select authentication method"
                                 },
                                 currentValue = when (jellyseerrAuthType) {
-                                    "api_key" -> "API Key"
-                                    "credentials" -> "Login"
-                                    else -> "API Key"
+                                    "api_key" -> "API 密钥"
+                                    "credentials" -> "登录"
+                                    else -> "API 密钥"
                                 },
                                 onCycle = {
                                     jellyseerrAuthType = when (jellyseerrAuthType) {
@@ -990,12 +990,12 @@ fun SettingsScreen(
                             if (jellyseerrAuthType == "api_key") {
                                 // API Key authentication
                                 SettingButton(
-                                    title = "Jellyseerr API Key",
+                                    title = "Jellyseerr API 密钥",
                                     description = if (jellyseerrApiKey.isNotBlank()) 
                                         "API key configured ✓" 
                                     else 
                                         "Get from Jellyseerr Settings > General",
-                                    buttonText = if (jellyseerrApiKey.isNotBlank()) "Change" else "Set Key",
+                                    buttonText = if (jellyseerrApiKey.isNotBlank()) "更改" else "设置密钥",
                                     onClick = { showJellyseerrApiKeyDialog = true }
                                 )
                                 
@@ -1017,14 +1017,14 @@ fun SettingsScreen(
                                                     verticalArrangement = Arrangement.spacedBy(24.dp)
                                                 ) {
                                                     Text(
-                                                        text = "Jellyseerr API Key",
+                                                        text = "Jellyseerr API 密钥",
                                                         style = if (isTv) MaterialTheme.typography.headlineSmall else androidx.compose.material3.MaterialTheme.typography.titleLarge,
                                                         color = if (isTv) MaterialTheme.colorScheme.onSurface else androidx.compose.material3.MaterialTheme.colorScheme.onSurface
                                                     )
                                                     
                                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                                         Text(
-                                                            text = "Enter your Jellyseerr API key. Find it in Jellyseerr: Settings > General > API Key",
+                                                            text = "请输入 Jellyseerr API 密钥。在 Jellyseerr 中查找：设置 > 通用 > API 密钥",
                                                             style = if (isTv) MaterialTheme.typography.bodyMedium else androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                                                             color = if (isTv) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f) else androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                                         )
@@ -1032,7 +1032,7 @@ fun SettingsScreen(
                                                         OutlinedTextField(
                                                              value = apiKeyInput,
                                                              onValueChange = { apiKeyInput = it },
-                                                             label = { Text("API Key") },
+                                                             label = { Text("API 密钥") },
                                                              singleLine = true,
                                                              modifier = Modifier.fillMaxWidth(),
                                                              colors = TextFieldDefaults.colors(
@@ -1061,7 +1061,7 @@ fun SettingsScreen(
                                                                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                                                                 )
                                                             ) {
-                                                                Text("Cancel")
+                                                                Text("取消")
                                                             }
                                                             
                                                             Button(
@@ -1072,7 +1072,7 @@ fun SettingsScreen(
                                                                 },
                                                                 modifier = Modifier.weight(1f)
                                                             ) {
-                                                                Text("Save")
+                                                                Text("保存")
                                                             }
                                                         } else {
                                                             androidx.compose.material3.Button(
@@ -1082,7 +1082,7 @@ fun SettingsScreen(
                                                                     containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
                                                                 )
                                                             ) {
-                                                                androidx.compose.material3.Text("Cancel", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+                                                                androidx.compose.material3.Text("取消", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
                                                             }
                                                             
                                                             androidx.compose.material3.Button(
@@ -1093,7 +1093,7 @@ fun SettingsScreen(
                                                                 },
                                                                 modifier = Modifier.weight(1f)
                                                             ) {
-                                                                androidx.compose.material3.Text("Save")
+                                                                androidx.compose.material3.Text("保存")
                                                             }
                                                         }
                                                     }
@@ -1125,12 +1125,12 @@ fun SettingsScreen(
                             } else {
                                 // Username/Password authentication
                                 SettingButton(
-                                    title = "Jellyseerr Login",
+                                    title = "Jellyseerr 登录",
                                     description = if (jellyseerrSessionCookie.isNotBlank() && jellyseerrUsername.isNotBlank()) 
                                         "Logged in as ${jellyseerrUsername} ✓" 
                                     else 
                                         "Sign in with your Jellyseerr or Jellyfin account",
-                                    buttonText = if (jellyseerrSessionCookie.isNotBlank()) "Re-Login" else "Sign In",
+                                    buttonText = if (jellyseerrSessionCookie.isNotBlank()) "Re-Login" else "登录",
                                     onClick = { 
                                         showJellyseerrLoginDialog = true
                                         loginError = null
@@ -1141,9 +1141,9 @@ fun SettingsScreen(
                                 if (jellyseerrSessionCookie.isNotBlank()) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     SettingButton(
-                                        title = "Sign Out",
+                                        title = "退出登录",
                                         description = "Clear stored credentials",
-                                        buttonText = "Sign Out",
+                                        buttonText = "退出登录",
                                         onClick = {
                                             settings.clearJellyseerrCredentials()
                                             jellyseerrSessionCookie = ""
@@ -1179,14 +1179,14 @@ fun SettingsScreen(
                                                     verticalArrangement = Arrangement.spacedBy(24.dp)
                                                 ) {
                                                     Text(
-                                                        text = "Jellyseerr Login",
+                                                        text = "Jellyseerr 登录",
                                                         style = if (isTv) MaterialTheme.typography.headlineSmall else androidx.compose.material3.MaterialTheme.typography.titleLarge,
                                                         color = if (isTv) MaterialTheme.colorScheme.onSurface else androidx.compose.material3.MaterialTheme.colorScheme.onSurface
                                                     )
                                                     
                                                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                                                         Text(
-                                                            text = "Sign in with your credentials.",
+                                                            text = "使用你的账号登录。",
                                                             style = if (isTv) MaterialTheme.typography.bodyMedium else androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                                                             color = if (isTv) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f) else androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                                         )
@@ -1217,7 +1217,7 @@ fun SettingsScreen(
                                                                         else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                                                                     )
                                                                 ) {
-                                                                    Text("Local/Email")
+                                                                    Text("本地/邮箱")
                                                                 }
                                                             } else {
                                                                 androidx.compose.material3.Button(
@@ -1240,7 +1240,7 @@ fun SettingsScreen(
                                                                         else androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
                                                                     )
                                                                 ) {
-                                                                    androidx.compose.material3.Text("Local/Email", color = if (!useJellyfinAuth) Color.White else androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+                                                                    androidx.compose.material3.Text("本地/邮箱", color = if (!useJellyfinAuth) Color.White else androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
                                                                 }
                                                             }
                                                         }
@@ -1248,7 +1248,7 @@ fun SettingsScreen(
                                                         OutlinedTextField(
                                                              value = usernameInput,
                                                              onValueChange = { usernameInput = it },
-                                                             label = { Text(if (useJellyfinAuth) "Jellyfin Username" else "Email") },
+                                                             label = { Text(if (useJellyfinAuth) "Jellyfin 用户名" else "邮箱") },
                                                              singleLine = true,
                                                              enabled = !isLoggingIn,
                                                              modifier = Modifier.fillMaxWidth(),
@@ -1268,7 +1268,7 @@ fun SettingsScreen(
                                                          OutlinedTextField(
                                                              value = passwordInput,
                                                              onValueChange = { passwordInput = it },
-                                                             label = { Text("Password") },
+                                                             label = { Text("密码") },
                                                              singleLine = true,
                                                              enabled = !isLoggingIn,
                                                              visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
@@ -1323,7 +1323,7 @@ fun SettingsScreen(
                                                                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                                                                 )
                                                             ) {
-                                                                Text("Cancel")
+                                                                Text("取消")
                                                             }
                                                             
                                                             Button(
@@ -1376,7 +1376,7 @@ fun SettingsScreen(
                                                                 enabled = !isLoggingIn,
                                                                 modifier = Modifier.weight(1f)
                                                             ) {
-                                                                Text("Sign In")
+                                                                Text("登录")
                                                             }
                                                         } else {
                                                             androidx.compose.material3.Button(
@@ -1387,7 +1387,7 @@ fun SettingsScreen(
                                                                     containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
                                                                 )
                                                             ) {
-                                                                androidx.compose.material3.Text("Cancel", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+                                                                androidx.compose.material3.Text("取消", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
                                                             }
                                                             
                                                             androidx.compose.material3.Button(
@@ -1440,7 +1440,7 @@ fun SettingsScreen(
                                                                 enabled = !isLoggingIn,
                                                                 modifier = Modifier.weight(1f)
                                                             ) {
-                                                                androidx.compose.material3.Text("Sign In")
+                                                                androidx.compose.material3.Text("登录")
                                                             }
                                                         }
                                                     }
@@ -1481,7 +1481,7 @@ fun SettingsScreen(
                                 Spacer(modifier = Modifier.height(8.dp))
                                 
                                 SettingToggle(
-                                    title = "Enable Discover Tab",
+                                    title = "启用发现标签页",
                                     description = "Show Discover tab with Trending, Popular, and Upcoming content from Jellyseerr",
                                     isEnabled = jellyseerrEnabled,
                                     onToggle = {
@@ -1491,7 +1491,7 @@ fun SettingsScreen(
                                 )
                                 
                                 SettingToggle(
-                                    title = "Include in Search",
+                                    title = "包含在搜索中",
                                     description = "Show results from Jellyseerr in the main search screen",
                                     isEnabled = jellyseerrSearchEnabled,
                                     onToggle = {
@@ -1507,12 +1507,12 @@ fun SettingsScreen(
                             var showTmdbKeyDialog by remember { mutableStateOf(false) }
                             
                             SettingButton(
-                                title = "TMDB API Key (Trailers Support)",
+                                title = "TMDB API 密钥（预告片支持）",
                                 description = if (tmdbApiKey.isNotBlank()) 
                                     "TMDB Key Configured ✓" 
                                 else 
                                     "Required to fetch trailers directly from The Movie Database",
-                                buttonText = if (tmdbApiKey.isNotBlank()) "Change" else "Set Key",
+                                buttonText = if (tmdbApiKey.isNotBlank()) "更改" else "设置密钥",
                                 onClick = { showTmdbKeyDialog = true }
                             )
                             
@@ -1539,12 +1539,12 @@ fun SettingsScreen(
                                             ) {
                                                 if (isTv) {
                                                     Text(
-                                                        text = "TMDB API Key",
+                                                        text = "TMDB API 密钥",
                                                         style = MaterialTheme.typography.headlineSmall
                                                     )
                                                 } else {
                                                     androidx.compose.material3.Text(
-                                                        text = "TMDB API Key",
+                                                        text = "TMDB API 密钥",
                                                         style = androidx.compose.material3.MaterialTheme.typography.headlineSmall
                                                     )
                                                 }
@@ -1552,13 +1552,13 @@ fun SettingsScreen(
                                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                                     if (isTv) {
                                                         Text(
-                                                            text = "Enter your TMDB API Key to fetch trailers directly from The Movie Database.",
+                                                            text = "请输入 TMDB API 密钥，用于直接从 TMDB 获取预告片。",
                                                             style = MaterialTheme.typography.bodyMedium,
                                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                                         )
                                                     } else {
                                                         androidx.compose.material3.Text(
-                                                            text = "Enter your TMDB API Key to fetch trailers directly from The Movie Database.",
+                                                            text = "请输入 TMDB API 密钥，用于直接从 TMDB 获取预告片。",
                                                             style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                                                             color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                                         )
@@ -1570,7 +1570,7 @@ fun SettingsScreen(
                                                              apiKeyInput = it
                                                              verificationError = null 
                                                          },
-                                                         label = { Text("TMDB API Key") },
+                                                         label = { Text("TMDB API 密钥") },
                                                          singleLine = true,
                                                          modifier = Modifier.fillMaxWidth(),
                                                          isError = verificationError != null,
@@ -1612,7 +1612,7 @@ fun SettingsScreen(
                                                                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                                                             )
                                                         ) {
-                                                            Text("Cancel")
+                                                            Text("取消")
                                                         }
                                                     } else {
                                                         androidx.compose.material3.Button(
@@ -1624,7 +1624,7 @@ fun SettingsScreen(
                                                             )
                                                         ) {
                                                             androidx.compose.material3.Text(
-                                                                text = "Cancel",
+                                                                text = "取消",
                                                                 color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
                                                             )
                                                         }
@@ -1660,7 +1660,7 @@ fun SettingsScreen(
                                                                     strokeWidth = 2.dp
                                                                 )
                                                             } else {
-                                                                Text("Save")
+                                                                Text("保存")
                                                             }
                                                         }
                                                     } else {
@@ -1693,7 +1693,7 @@ fun SettingsScreen(
                                                                     strokeWidth = 2.dp
                                                                 )
                                                             } else {
-                                                                androidx.compose.material3.Text("Save")
+                                                                androidx.compose.material3.Text("保存")
                                                             }
                                                         }
                                                     }
@@ -1729,7 +1729,7 @@ fun SettingsScreen(
                         SettingsCategory.APPEARANCE -> {
                             // Dark Mode
                             SettingToggle(
-                                title = "Dark Mode",
+                                title = "深色模式",
                                 description = "Disable background image and use Material dark background",
                                 isEnabled = darkModeEnabled,
                                 onToggle = {
@@ -1740,7 +1740,7 @@ fun SettingsScreen(
                             
                             // Use Logo for Title
                             SettingToggle(
-                                title = "Use Logo for Title",
+                                title = "使用 Logo 作为标题",
                                 description = "Display logo image instead of title text on media screens",
                                 isEnabled = useLogoForTitleEnabled,
                                 onToggle = {
@@ -1751,7 +1751,7 @@ fun SettingsScreen(
                             
                             // Animated Play Button
                             SettingToggle(
-                                title = "Animated Play Button",
+                                title = "播放按钮动画",
                                 description = "Use animated play button with Lottie glow effect",
                                 isEnabled = animatedPlayButtonEnabled,
                                 onToggle = {
@@ -1784,7 +1784,7 @@ fun SettingsScreen(
 
                             // Navigation Sounds
                             SettingToggle(
-                                title = "Navigation Sounds",
+                                title = "导航音效",
                                 description = "Enable default system sounds when navigating and clicking in the app",
                                 isEnabled = navigationSoundsEnabled,
                                 onToggle = {
@@ -1796,14 +1796,14 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.height(16.dp))
                             if (isTv) {
                                 Text(
-                                    text = "Theme Accent Color",
+                                    text = "主题强调色",
                                     style = MaterialTheme.typography.titleMedium,
                                     color = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                                 )
                             } else {
                                 Text(
-                                    text = "Theme Accent Color",
+                                    text = "主题强调色",
                                     style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
                                     color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -1885,7 +1885,7 @@ fun SettingsScreen(
                         SettingsCategory.PERFORMANCE -> {
                             // Use Google TV Cards
                             SettingToggle(
-                                title = "Use Google TV Cards",
+                                title = "使用 Google TV 卡片风格",
                                 description = "Lightweight cards with subtle scale animation and glow border.",
                                 isEnabled = useGoogleTvCards,
                                 onToggle = {
@@ -1901,7 +1901,7 @@ fun SettingsScreen(
                             
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Animations",
+                                text = "动画效果",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(start = 16.dp, bottom = 4.dp)
@@ -1909,7 +1909,7 @@ fun SettingsScreen(
                             
                             // Disable UI Animations
                             SettingToggle(
-                                title = "Disable UI Animations",
+                                title = "禁用界面动画",
                                 description = "Turn off row scrolling animations for better performance",
                                 isEnabled = disableUIAnimations,
                                 onToggle = {
@@ -1920,7 +1920,7 @@ fun SettingsScreen(
                             
                             // Preload Library Images
                             SettingToggle(
-                                title = "Preload Library Images",
+                                title = "预加载媒体库图片",
                                 description = "Preload images for smoother scrolling",
                                 isEnabled = preloadLibraryImagesEnabled,
                                 onToggle = {
@@ -1931,7 +1931,7 @@ fun SettingsScreen(
                             
                             // Cache Library Images
                             SettingToggle(
-                                title = "Cache Library Images",
+                                title = "缓存媒体库图片",
                                 description = "Cache images to disk and memory for faster loading",
                                 isEnabled = cacheLibraryImagesEnabled,
                                 onToggle = {
@@ -1942,7 +1942,7 @@ fun SettingsScreen(
                             
                             // Use Glide
                             SettingToggle(
-                                title = "Use Glide for Images",
+                                title = "使用 Glide 加载图片",
                                 description = "Use Glide instead of Coil for image loading",
                                 isEnabled = useGlideEnabled,
                                 onToggle = {
@@ -1953,7 +1953,7 @@ fun SettingsScreen(
                             
                             // Reduce Poster Resolution
                             SettingToggle(
-                                title = "Reduce Poster Resolution",
+                                title = "降低海报分辨率",
                                 description = "Reduce poster images to 600x300px to save bandwidth",
                                 isEnabled = reducePosterResolutionEnabled,
                                 onToggle = {
@@ -1966,7 +1966,7 @@ fun SettingsScreen(
                         SettingsCategory.LIBRARY -> {
                             // Auto-Refresh Media
                             SettingToggle(
-                                title = "Auto-Refresh Media",
+                                title = "自动刷新媒体",
                                 description = "Automatically check for new media (every ${autoRefreshIntervalMinutes} min)",
                                 isEnabled = autoRefreshEnabled,
                                 onToggle = {
@@ -1978,7 +1978,7 @@ fun SettingsScreen(
                             // Refresh Interval
                             if (autoRefreshEnabled) {
                                 SettingCycle(
-                                    title = "Refresh Interval",
+                                    title = "刷新间隔",
                                     description = "How often to check for new media",
                                     currentValue = "${autoRefreshIntervalMinutes}m",
                                     onCycle = {
@@ -1997,7 +1997,7 @@ fun SettingsScreen(
                             
                             // Hide Shows with Zero Episodes
                             SettingToggle(
-                                title = "Hide Empty Shows",
+                                title = "隐藏空剧集",
                                 description = "Hide TV shows with no episodes from home and library",
                                 isEnabled = hideShowsWithZeroEpisodesEnabled,
                                 onToggle = {
@@ -2008,7 +2008,7 @@ fun SettingsScreen(
 
                             // Row Card Count
                             SettingCycle(
-                                title = "Row Card Count",
+                                title = "行卡片数量",
                                 description = "Number of items to fetch and display per row",
                                 currentValue = rowCardCount.toString(),
                                 onCycle = {
@@ -2027,7 +2027,7 @@ fun SettingsScreen(
                         SettingsCategory.ADVANCED -> {
                             // Debug Outlines
                             SettingToggle(
-                                title = "Show Debug Outlines",
+                                title = "显示调试轮廓",
                                 description = "Show debug borders to visualize layout",
                                 isEnabled = debugOutlinesEnabled,
                                 onToggle = {
@@ -2038,7 +2038,7 @@ fun SettingsScreen(
                             
                             // Long Press Duration
                             SettingCycle(
-                                title = "Long Press Duration",
+                                title = "长按持续时间",
                                 description = "Duration to hold Enter/OK for episode menu",
                                 currentValue = "${longPressDurationSeconds}s",
                                 onCycle = {
@@ -2055,9 +2055,9 @@ fun SettingsScreen(
                             
                             // Clear Image Cache
                             SettingButton(
-                                title = "Clear Image Cache",
+                                title = "清除图片缓存",
                                 description = "Clear all cached images from disk and memory",
-                                buttonText = "Clear",
+                                buttonText = "清除",
                                 onClick = {
                                     scope.launch {
                                         try {
@@ -2097,7 +2097,7 @@ fun SettingsScreen(
                         SettingsCategory.UPDATES -> {
                             // Auto-Check for Updates
                             SettingToggle(
-                                title = "Auto-Check for Updates",
+                                title = "自动检查更新",
                                 description = "Automatically check for updates when app starts",
                                 isEnabled = autoUpdateEnabled,
                                 onToggle = {
@@ -2108,7 +2108,7 @@ fun SettingsScreen(
                             
                             // Check for Updates
                             SettingButton(
-                                title = "Check for Updates",
+                                title = "检查更新",
                                 description = if (checkingForUpdates) {
                                     "Checking for updates..."
                                 } else if (updateCheckMessage != null) {
@@ -2169,12 +2169,12 @@ fun SettingsScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "Log Out",
+                                        text = "退出登录",
                                         style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.error
                                     )
                                     Text(
-                                        text = "Sign out and return to login screen",
+                                        text = "退出并返回登录界面",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                                         modifier = Modifier.padding(top = 4.dp)
@@ -2187,7 +2187,7 @@ fun SettingsScreen(
                                         containerColor = MaterialTheme.colorScheme.error
                                     )
                                 ) {
-                                    Text("Log Out")
+                                    Text("退出登录")
                                 }
                             }
                         }
@@ -2201,14 +2201,14 @@ fun SettingsScreen(
                                 verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 Text(
-                                    text = "Support the Developer",
+                                    text = "支持开发者",
                                     style = MaterialTheme.typography.headlineSmall,
                                     color = MaterialTheme.colorScheme.primary,
                                     textAlign = TextAlign.Center
                                 )
                                 
                                 Text(
-                                    text = "If you enjoy using Elefin and would like to support its development, consider buying me a coffee! Your support helps keep the project alive and motivated. Thank you!",
+                                    text = "如果你喜欢 Elefin 并希望支持其开发，请考虑请我喝杯咖啡！你的支持能让项目保持活力。谢谢！",
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                                     textAlign = TextAlign.Center,
@@ -2227,7 +2227,7 @@ fun SettingsScreen(
                                 )
                                 
                                 Text(
-                                    text = "Scan the QR code to donate",
+                                    text = "扫码捐赠",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
@@ -2265,12 +2265,12 @@ fun SettingsScreen(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = "返回"
                         )
                     }
 
                     Text(
-                        text = "Settings",
+                        text = "设置",
                         style = MaterialTheme.typography.headlineLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(start = 16.dp)
@@ -2287,12 +2287,12 @@ fun SettingsScreen(
                     ) {
                         androidx.compose.material3.Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = "返回"
                         )
                     }
 
                     androidx.compose.material3.Text(
-                        text = if (activeCategoryDetail != null) activeCategoryDetail!!.title else "Settings",
+                        text = if (activeCategoryDetail != null) activeCategoryDetail!!.title else "设置",
                         style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
@@ -2436,13 +2436,13 @@ fun SettingsScreen(
                             verticalArrangement = Arrangement.spacedBy(24.dp)
                         ) {
                             Text(
-                                text = "Log Out?",
+                                text = "退出登录？",
                                 style = if (isTv) MaterialTheme.typography.headlineSmall else androidx.compose.material3.MaterialTheme.typography.titleLarge,
                                 color = if (isTv) MaterialTheme.colorScheme.onSurface else androidx.compose.material3.MaterialTheme.colorScheme.onSurface
                             )
                             
                             Text(
-                                text = "Are you sure you want to log out? You will need to sign in again to access your media.",
+                                text = "确定要退出登录吗？你需要重新登录才能访问媒体。",
                                 style = if (isTv) MaterialTheme.typography.bodyMedium else androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                                 color = if (isTv) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f) else androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -2460,7 +2460,7 @@ fun SettingsScreen(
                                             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                                         )
                                     ) {
-                                        Text("Cancel")
+                                        Text("取消")
                                     }
                                     
                                     Button(
@@ -2478,7 +2478,7 @@ fun SettingsScreen(
                                             containerColor = MaterialTheme.colorScheme.error
                                         )
                                     ) {
-                                        Text("Log Out")
+                                        Text("退出登录")
                                     }
                                 } else {
                                     androidx.compose.material3.Button(
@@ -2488,7 +2488,7 @@ fun SettingsScreen(
                                             containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
                                         )
                                     ) {
-                                        androidx.compose.material3.Text("Cancel", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+                                        androidx.compose.material3.Text("取消", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                     
                                     androidx.compose.material3.Button(
@@ -2506,7 +2506,7 @@ fun SettingsScreen(
                                             containerColor = androidx.compose.material3.MaterialTheme.colorScheme.error
                                         )
                                     ) {
-                                        androidx.compose.material3.Text("Log Out", color = Color.White)
+                                        androidx.compose.material3.Text("退出登录", color = Color.White)
                                     }
                                 }
                             }
@@ -2560,7 +2560,7 @@ fun SettingsScreen(
         // ExoPlayer subtitle text color picker dialog
         if (showExoSubtitleColorDialog) {
             SubtitleColorPickerDialog(
-                title = "Subtitle Text Color",
+                title = "字幕文字颜色",
                 currentColor = settings.exoSubtitleTextColor,
                 onColorSelected = { color ->
                     settings.exoSubtitleTextColor = color
@@ -2573,7 +2573,7 @@ fun SettingsScreen(
         // ExoPlayer subtitle background color picker dialog
         if (showExoSubtitleBgColorDialog) {
             SubtitleColorPickerDialog(
-                title = "Subtitle Background Color",
+                title = "字幕背景颜色",
                 currentColor = settings.exoSubtitleBgColor,
                 onColorSelected = { color ->
                     settings.exoSubtitleBgColor = color
@@ -2975,7 +2975,7 @@ fun SubtitleColorPickerDialog(
                                 contentColor = MaterialTheme.colorScheme.onSurface
                             )
                         ) {
-                            Text("Cancel")
+                            Text("取消")
                         }
                     }
                 }
@@ -3043,7 +3043,7 @@ fun SubtitleColorPickerDialog(
                             onClick = onDismiss,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            androidx.compose.material3.Text("Cancel")
+                            androidx.compose.material3.Text("取消")
                         }
                     }
                 }
