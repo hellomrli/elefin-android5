@@ -1,0 +1,2625 @@
+package com.flex.elefin.screens
+
+import com.flex.elefin.jellyfin.JellyfinRepository
+import android.util.Log
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import kotlin.math.min
+import kotlin.math.PI
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.Image
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.ui.window.Dialog
+import kotlinx.coroutines.launch
+import androidx.compose.ui.window.DialogProperties
+import androidx.tv.material3.Button
+import androidx.tv.material3.ButtonDefaults
+import androidx.tv.material3.Card
+import androidx.tv.material3.CardDefaults
+import androidx.tv.material3.Icon
+import androidx.tv.material3.IconButton
+import androidx.tv.material3.IconButtonDefaults
+import androidx.tv.material3.ListItem
+import androidx.tv.material3.ListItemDefaults
+import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.StandardCardContainer
+import androidx.tv.material3.Text
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.request.CachePolicy
+import com.flex.elefin.JellyfinVideoPlayerActivity
+import com.flex.elefin.MovieDetailsActivity
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import com.flex.elefin.jellyfin.JellyfinApiService
+import com.flex.elefin.jellyfin.JellyfinItem
+import com.flex.elefin.R
+import com.flex.elefin.screens.ItemDetailsSection
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.rememberCoroutineScope
+import com.flex.elefin.TrailerLauncher
+import com.flex.elefin.tmdb.TmdbApiService
+
+@Composable
+fun MovieDetailsScreen(
+    item: JellyfinItem,
+    apiService: JellyfinApiService?,
+    showDebugOutlines: Boolean = false,
+    onBackPressed: (() -> Unit)? = null
+) {
+    val context = LocalContext.current
+    val settings = remember { com.flex.elefin.jellyfin.AppSettings(context) }
+    var darkModeEnabled by remember { mutableStateOf(settings.darkModeEnabled) }
+    
+    val repository = remember(apiService) {
+        apiService?.let { JellyfinRepository(it, settings) }
+    }
+
+    val isTv = remember(context) { com.flex.elefin.ui.DeviceUtils.isTvDevice(context) }
+    if (!isTv && repository != null) {
+        JellyfinMobileDetailsScreen(
+            item = item,
+            repository = repository,
+            onPlayClick = { playItem, resumeMs ->
+                val intent = JellyfinVideoPlayerActivity.createIntent(context, playItem.Id, resumeMs)
+                context.startActivity(intent)
+            },
+            onBackClick = { onBackPressed?.invoke() }
+        )
+        return
+    }
+    
+    // GL Pipeline warmup for NVIDIA Shield - prevents initial frame stutter and ANR
+    LaunchedEffect(Unit) {
+        delay(100) // 100ms delay to prevent ANR and warm up GL pipeline
+    }
+    
+    // Handle back button press
+    if (onBackPressed != null) {
+        BackHandler(onBack = onBackPressed)
+    }
+    
+    // Lifecycle observer to trigger refresh when returning from player
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    var refreshTrigger by remember { mutableStateOf(0) }
+    var showSettings by remember { mutableStateOf(false) }
+    
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                // Increment trigger to reload data
+                refreshTrigger++
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    var itemDetails by remember { mutableStateOf<JellyfinItem?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    // Fetch full item details
+    LaunchedEffect(item.Id, apiService, refreshTrigger) {
+        if (apiService != null) {
+            withContext(Dispatchers.IO) {
+                try {
+                    Log.d("MovieDetailsScreen", "Fetching item details for: ${item.Id} (${item.Name}) [refresh=$refreshTrigger]")
+                    Log.d("MovieDetailsScreen", "Initial item UserData: ${item.UserData}")
+                    val details = apiService.getItemDetails(item.Id)
+                    itemDetails = details
+                    Log.d("MovieDetailsScreen", "Fetched item details UserData: ${details?.UserData}")
+                    Log.d("MovieDetailsScreen", "Fetched item PositionTicks: ${details?.UserData?.PositionTicks}")
+                    isLoading = false
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    // Ignore cancellation exceptions - they're expected when composition changes
+                    throw e // Re-throw to properly handle cancellation
+                } catch (e: Exception) {
+                    Log.e("MovieDetailsScreen", "Error fetching item details", e)
+                    isLoading = false
+                }
+            }
+        } else {
+            isLoading = false
+        }
+    }
+
+    val displayItem = itemDetails ?: item
+    
+    // Log the displayItem UserData to see what's being passed to ActionButtonsRow
+    LaunchedEffect(itemDetails) {
+        val itemToCheck = itemDetails ?: item
+        Log.d("MovieDetailsScreen", "DisplayItem UserData updated: ${itemToCheck.UserData}")
+        Log.d("MovieDetailsScreen", "DisplayItem PositionTicks: ${itemToCheck.UserData?.PositionTicks}")
+        val isResumable = itemToCheck.UserData?.PositionTicks != null && itemToCheck.UserData?.PositionTicks!! > 0
+        Log.d("MovieDetailsScreen", "DisplayItem isResumable: $isResumable")
+    }
+    
+    // For episodes, try to get backdrop from the episode first, then fallback to series backdrop
+    val backdropUrl = remember(displayItem) {
+        // First, check if the item itself has a backdrop
+        // Use 1080p resolution - sufficient for background images and faster loading
+        val itemBackdrop = apiService?.getImageUrl(displayItem.Id, "Backdrop", null, maxWidth = 1920, maxHeight = 1080, quality = 90)
+        if (itemBackdrop?.isNotEmpty() == true) {
+            itemBackdrop
+        } else if (displayItem.Type == "Episode" && displayItem.SeriesId != null) {
+            // For episodes, try to get backdrop from parent series
+            apiService?.getImageUrl(displayItem.SeriesId, "Backdrop", null, maxWidth = 1920, maxHeight = 1080, quality = 90) ?: ""
+        } else {
+            ""
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Backdrop background - absolutely positioned to fill entire screen
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .align(Alignment.Center)
+        ) {
+            // Get backdrop URL or fallback to primary
+            val imageUrl = if (backdropUrl.isNotEmpty()) {
+                backdropUrl
+            } else {
+                // Fallback to primary image (from item or series)
+                // Use 1080p resolution for backgrounds
+                val primaryUrl = apiService?.getImageUrl(displayItem.Id, "Primary", null, maxWidth = 1920, maxHeight = 1080, quality = 90)
+                if (primaryUrl?.isNotEmpty() == true) {
+                    primaryUrl
+                } else if (displayItem.Type == "Episode" && displayItem.SeriesId != null) {
+                    // For episodes, try primary from series as last resort
+                    apiService?.getImageUrl(displayItem.SeriesId, "Primary", null, maxWidth = 1920, maxHeight = 1080, quality = 90) ?: ""
+                } else {
+                    ""
+                }
+            }
+            
+            // Use Crossfade for smooth fade animation
+            // In dark mode, don't show background image - use Material dark background instead
+            if (!darkModeEnabled) {
+                Crossfade(
+                    targetState = imageUrl,
+                    animationSpec = tween(durationMillis = 500),
+                    label = "background_fade"
+                ) { currentUrl ->
+                    if (currentUrl.isNotEmpty() && apiService != null) {
+                        val headerMap = apiService.getImageRequestHeaders()
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(currentUrl)
+                                .headers(headerMap)
+                                .memoryCachePolicy(CachePolicy.ENABLED)
+                                .diskCachePolicy(CachePolicy.ENABLED)
+                                .crossfade(300) // Smooth 300ms crossfade when loading
+                                .allowHardware(true) // Use GPU memory for faster rendering
+                                .build(),
+                            contentDescription = displayItem.Name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.FillBounds,
+                            alignment = Alignment.Center
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        )
+                    }
+                }
+                
+                // 50% darkness overlay (same as library view) - skip in dark mode
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.1f))
+                )
+
+                // Scrim gradient overlay (matching home screen)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .carouselGradient()
+                )
+            } else {
+                // Dark mode: use Material dark background
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surface)
+                )
+            }
+        }
+        
+        // Content on top of backdrop
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+        ) {
+            // Top container with synopsis and metadata (50% of screen, fixed)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(0.5f)
+                    .then(
+                        if (showDebugOutlines) {
+                            Modifier.border(4.dp, Color.Red)
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
+                TopContainer(
+                    item = displayItem,
+                    apiService = apiService,
+                    showDebugOutlines = showDebugOutlines,
+                    onShowSettings = { showSettings = true }
+                )
+            }
+
+            // Bottom container with cast and similar movies (50% of screen, scrollable)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(0.5f)
+                    .then(
+                        if (showDebugOutlines) {
+                            Modifier.border(4.dp, Color.Blue)
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
+                BottomContainer(
+                    item = displayItem,
+                    apiService = apiService,
+                    showDebugOutlines = showDebugOutlines
+                )
+            }
+        }
+    }
+
+    // Settings dialog (for TMDB key configuration) - moved to top level for full screen
+    if (showSettings) {
+        SettingsScreen(
+            onBack = { showSettings = false },
+            initialCategory = com.flex.elefin.screens.SettingsCategory.TRAILERS
+        )
+    }
+}
+
+@Composable
+fun TopContainer(
+    item: JellyfinItem,
+    apiService: JellyfinApiService?,
+    showDebugOutlines: Boolean = false,
+    onShowSettings: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .then(
+                if (showDebugOutlines) {
+                    Modifier.border(3.dp, Color.Red)
+                } else {
+                    Modifier
+                }
+            )
+    ) {
+        // Content: Synopsis and metadata (no poster)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(33.6.dp) // 30% less padding (48 * 0.7 = 33.6)
+                .then(
+                    if (showDebugOutlines) {
+                        Modifier.border(2.dp, Color.Magenta)
+                    } else {
+                        Modifier
+                    }
+                ),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Content area that auto-adjusts to synopsis text size
+            // Make scrollable so metadata is always accessible even with long synopsis
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f) // Take available space, synopsis can expand within
+                    .verticalScroll(rememberScrollState()) // Allow scrolling if content is too long
+                    .then(
+                        if (showDebugOutlines) {
+                            Modifier.border(2.dp, Color.Green)
+                        } else {
+                            Modifier
+                        }
+                    ),
+                verticalArrangement = Arrangement.spacedBy(8.dp) // Space items evenly
+            ) {
+                // Title, Metadata, and Synopsis - using home screen style for uniformity
+                // Fetch item details for metadata (handled by parent now)
+                val context = LocalContext.current
+                val settings = remember { com.flex.elefin.jellyfin.AppSettings(context) }
+                // Use the passed item directly as it contains the fresh details from parent
+                val displayItemForMetadata = item
+                var selectedSubtitleIndexForMetadata by remember { mutableStateOf<Int?>(settings.getSubtitlePreference(item.Id)) }
+                
+                // Update subtitle preference when item updates (e.g. after returning from playback)
+                LaunchedEffect(item) {
+                     selectedSubtitleIndexForMetadata = settings.getSubtitlePreference(item.Id)
+                }
+                
+                ItemDetailsSection(
+                    item = item,
+                    apiService = apiService,
+                    modifier = Modifier.fillMaxWidth(),
+                    synopsisMaxLines = Int.MAX_VALUE, // Allow full synopsis on detail screen
+                    additionalMetadataContent = {
+                        // Time remaining indicator (if item has been started)
+                        if (displayItemForMetadata.RunTimeTicks != null && displayItemForMetadata.UserData?.PositionTicks != null && displayItemForMetadata.UserData?.PositionTicks!! > 0) {
+                            TimeRemainingIndicator(item = displayItemForMetadata)
+                        }
+                        
+                        // Get media information
+                        val videoStream = displayItemForMetadata.MediaSources?.firstOrNull()?.MediaStreams?.firstOrNull { it.Type == "Video" }
+                        val audioStream = displayItemForMetadata.MediaSources?.firstOrNull()?.MediaStreams?.firstOrNull { it.Type == "Audio" }
+                        val subtitleStream = displayItemForMetadata.MediaSources?.firstOrNull()?.MediaStreams?.firstOrNull { 
+                            it.Type == "Subtitle" && it.Index == selectedSubtitleIndexForMetadata 
+                        }
+                        
+                        // Maturity Rating
+                        displayItemForMetadata.OfficialRating?.let { rating ->
+                            MetadataBox(text = rating)
+                        }
+                        
+                        // Review Rating with Rotten Tomatoes icons support
+                        RatingDisplay(
+                            item = displayItemForMetadata,
+                            communityRating = displayItemForMetadata.CommunityRating,
+                            criticRating = displayItemForMetadata.CriticRating
+                        )
+                        
+                        // Resolution
+                        videoStream?.let { stream ->
+                            formatResolution(stream.Width, stream.Height)?.let {
+                                MetadataBox(text = it)
+                            }
+                        }
+                        
+                        // HDR/SDR - Only show HDR if 4K and HEVC (more accurate detection)
+                        videoStream?.let { stream ->
+                            val is4K = (stream.Width != null && stream.Width!! >= 3840) || (stream.Height != null && stream.Height!! >= 2160)
+                            val isHEVC = stream.Codec?.contains("hevc", ignoreCase = true) == true || 
+                                        stream.Codec?.contains("h265", ignoreCase = true) == true
+                            val hdrStatus = if (is4K && isHEVC) "HDR" else "SDR"
+                            MetadataBox(text = hdrStatus)
+                        }
+                        
+                        // Language with Audio Codec and Channel Layout
+                        audioStream?.let { stream ->
+                            val language = stream.Language?.uppercase() ?: ""
+                            val codec = stream.Codec?.uppercase() ?: ""
+                            val channelLayout = stream.ChannelLayout ?: ""
+                            
+                            // Format as "Language (CODEC CHANNEL)" or "Language (CODEC)" or just "Language"
+                            val audioText = when {
+                                codec.isNotEmpty() && channelLayout.isNotEmpty() && language.isNotEmpty() -> {
+                                    "$language ($codec $channelLayout)"
+                                }
+                                codec.isNotEmpty() && language.isNotEmpty() -> {
+                                    "$language ($codec)"
+                                }
+                                language.isNotEmpty() -> language
+                                codec.isNotEmpty() && channelLayout.isNotEmpty() -> "$codec $channelLayout"
+                                codec.isNotEmpty() -> codec
+                                else -> null
+                            }
+                            
+                            audioText?.let {
+                                MetadataBox(text = it)
+                            }
+                        }
+                        
+                        // Watched indicator
+                        val isWatched = (displayItemForMetadata.UserData?.Played == true) ||
+                                       (displayItemForMetadata.UserData?.PlayedPercentage == 100.0)
+                        if (isWatched) {
+                            MetadataBox(text = "Watched")
+                        }
+                    }
+                )
+            }
+            
+            // Action buttons row at the bottom of the container
+            ActionButtonsRow(
+                item = item, // item parameter is displayItem from parent
+                apiService = apiService,
+                onShowSettings = onShowSettings,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (showDebugOutlines) {
+                            Modifier.border(2.dp, Color.Yellow)
+                        } else {
+                            Modifier
+                        }
+                    )
+            )
+        }
+    }
+}
+
+@Composable
+fun BottomContainer(
+    item: JellyfinItem,
+    apiService: JellyfinApiService?,
+    showDebugOutlines: Boolean = false
+) {
+    val context = LocalContext.current
+    // Get cast members (People with Type == "Actor")
+    val castMembers = item.People?.filter { it.Type == "Actor" } ?: emptyList()
+    val firstGenre = item.Genres?.firstOrNull()
+    val firstCastMember = castMembers.firstOrNull()
+    
+    // State for similar movies and movies with cast member
+    var similarMovies by remember { mutableStateOf<List<JellyfinItem>>(emptyList()) }
+    var moviesWithCast by remember { mutableStateOf<List<JellyfinItem>>(emptyList()) }
+    var isLoadingSimilar by remember { mutableStateOf(true) }
+    var isLoadingCastMovies by remember { mutableStateOf(true) }
+    
+    // Fetch similar movies by genre
+    LaunchedEffect(firstGenre, apiService, item.Id) {
+        if (firstGenre != null && apiService != null) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val movies = apiService.getMoviesByGenre(firstGenre, excludeItemId = item.Id, limit = 20)
+                    similarMovies = movies
+                    isLoadingSimilar = false
+                } catch (e: Exception) {
+                    Log.e("MovieDetails", "Error fetching similar movies", e)
+                    isLoadingSimilar = false
+                }
+            }
+        } else {
+            isLoadingSimilar = false
+        }
+    }
+    
+    // Fetch movies with first cast member
+    LaunchedEffect(firstCastMember?.Id, apiService, item.Id) {
+        if (firstCastMember?.Id != null && apiService != null) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val movies = apiService.getMoviesByPerson(firstCastMember.Id, excludeItemId = item.Id, limit = 20)
+                    moviesWithCast = movies
+                    isLoadingCastMovies = false
+                } catch (e: Exception) {
+                    Log.e("MovieDetails", "Error fetching movies with cast member", e)
+                    isLoadingCastMovies = false
+                }
+            }
+        } else {
+            isLoadingCastMovies = false
+        }
+    }
+    
+    // Scrollable container with cast and movie rows
+    val scrollState = rememberLazyListState()
+    
+    LazyColumn(
+        state = scrollState,
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 48.dp)
+            .then(
+                if (showDebugOutlines) {
+                    Modifier.border(3.dp, Color.Cyan)
+                } else {
+                    Modifier
+                }
+            ),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp)
+    ) {
+        // Cast row - now focusable so selector can navigate to it
+        if (castMembers.isNotEmpty()) {
+            item {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Cast",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 48.dp), // Extra padding for focus scale animation
+                        modifier = Modifier.graphicsLayer { clip = false } // Prevent clipping of scaled cards
+                    ) {
+                        items(castMembers) { person ->
+                            CastMemberCard(
+                                person = person,
+                                apiService = apiService
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Chapters row
+        val chapters = item.Chapters ?: emptyList()
+        if (chapters.isNotEmpty()) {
+            item {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Chapters",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 48.dp),
+                        modifier = Modifier.graphicsLayer { clip = false }
+                    ) {
+                        itemsIndexed(chapters) { index, chapter ->
+                            ChapterCard(
+                                chapter = chapter,
+                                chapterIndex = index,
+                                itemId = item.Id,
+                                apiService = apiService,
+                                onClick = {
+                                    // Resolve subtitle/audio preferences
+                                    val settings = com.flex.elefin.jellyfin.AppSettings(context)
+                                    val subPref = settings.getSubtitlePreference(item.Id)
+                                    val audioPref = settings.getAudioPreference(item.Id)
+                                    
+                                    // Calculate defaults
+                                    val streams = item.MediaSources?.firstOrNull()?.MediaStreams
+                                    val defaultSub = null
+                                    val defaultAudio = streams?.firstOrNull { it.Type == "Audio" && it.IsDefault == true }?.Index
+
+                                    // Launch video player at chapter start position
+                                    val intent = JellyfinVideoPlayerActivity.createIntent(
+                                        context = context,
+                                        itemId = item.Id,
+                                        resumePositionMs = chapter.startMs,
+                                        subtitleStreamIndex = subPref ?: defaultSub,
+                                        audioStreamIndex = audioPref ?: defaultAudio,
+                                        itemName = item.Name
+                                    )
+                                    context.startActivity(intent)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Movies similar to row
+        if (firstGenre != null && (!isLoadingSimilar && similarMovies.isNotEmpty())) {
+            item {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Similar Movies",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 48.dp), // Extra padding for focus scale animation
+                        modifier = Modifier.graphicsLayer { clip = false } // Prevent clipping of scaled cards
+                    ) {
+                        items(similarMovies) { movie ->
+                            JellyfinHorizontalCard(
+                                item = movie,
+                                apiService = apiService,
+                                onClick = {
+                                    val intent = MovieDetailsActivity.createIntent(
+                                        context = context,
+                                        item = movie
+                                    )
+                                    context.startActivity(intent)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        
+        // More movies with [cast member] row
+        if (firstCastMember != null && (!isLoadingCastMovies && moviesWithCast.isNotEmpty())) {
+            item {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "More Movies with ${firstCastMember.Name}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 48.dp), // Extra padding for focus scale animation
+                        modifier = Modifier.graphicsLayer { clip = false } // Prevent clipping of scaled cards
+                    ) {
+                        items(moviesWithCast) { movie ->
+                            JellyfinHorizontalCard(
+                                item = movie,
+                                apiService = apiService,
+                                onClick = {
+                                    val intent = MovieDetailsActivity.createIntent(
+                                        context = context,
+                                        item = movie
+                                    )
+                                    context.startActivity(intent)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CastMemberCard(
+    person: com.flex.elefin.jellyfin.Person,
+    apiService: JellyfinApiService?,
+    onClick: (() -> Unit)? = null
+) {
+    val context = LocalContext.current
+    val imageUrl = person.Id?.let { personId ->
+        person.PrimaryImageTag?.let { tag ->
+            apiService?.getImageUrl(personId, "Primary", tag)
+        }
+    } ?: ""
+    
+    // Card size - 30% smaller (96.dp * 0.7 = 67.2.dp)
+    val cardSize = 67.dp
+    
+    Column(
+        modifier = Modifier
+            .width(cardSize),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Use StandardCardContainer for proper TV focus styling
+        StandardCardContainer(
+            modifier = Modifier.size(cardSize),
+            imageCard = { interactionSource ->
+                Card(
+                    onClick = {
+                        // Navigate to cast info screen if person has an ID
+                        if (person.Id != null && onClick != null) {
+                            onClick()
+                        } else if (person.Id != null) {
+                            // Default behavior: open CastInfoActivity
+                            val intent = com.flex.elefin.CastInfoActivity.createIntent(
+                                context,
+                                person.Id,
+                                person.Name,
+                                person.Type // Pass the type (Actor, Director, Writer, etc.)
+                            )
+                            context.startActivity(intent)
+                        }
+                    },
+                    interactionSource = interactionSource,
+                    colors = CardDefaults.colors(containerColor = Color.Transparent)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        if (imageUrl.isNotEmpty() && apiService != null) {
+                            val headerMap = apiService.getImageRequestHeaders()
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(imageUrl)
+                                    .headers(headerMap)
+                                    .build(),
+                                contentDescription = person.Name,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            // Placeholder
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(40.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            title = { }
+        )
+        
+        // Cast member name below the card
+        Text(
+            text = person.Name,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.7f
+            ),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
+            maxLines = 2,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+    }
+}
+
+@Composable
+fun ChapterCard(
+    chapter: com.flex.elefin.jellyfin.ChapterInfo,
+    chapterIndex: Int,
+    itemId: String,
+    apiService: JellyfinApiService?,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val chapterImageUrl = apiService?.getChapterImageUrl(
+        itemId = itemId,
+        chapterIndex = chapterIndex,
+        imageTag = chapter.ImageTag
+    ) ?: ""
+    
+    // Card dimensions - 16:9 aspect ratio for chapter thumbnails
+    val cardWidth = 180.dp
+    val cardHeight = 101.dp // 180 / 16 * 9
+    
+    Column(
+        modifier = Modifier.width(cardWidth),
+        horizontalAlignment = Alignment.Start,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Chapter thumbnail with play overlay
+        StandardCardContainer(
+            modifier = Modifier
+                .width(cardWidth)
+                .height(cardHeight),
+            imageCard = { interactionSource ->
+                Card(
+                    onClick = onClick,
+                    interactionSource = interactionSource,
+                    colors = CardDefaults.colors(containerColor = Color.Transparent)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        if (chapterImageUrl.isNotEmpty() && apiService != null) {
+                            val headerMap = apiService.getImageRequestHeaders()
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(chapterImageUrl)
+                                    .headers(headerMap)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = chapter.Name ?: "Chapter ${chapterIndex + 1}",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(8.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            // Placeholder with chapter number
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "${chapterIndex + 1}",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
+                        
+                        // Timestamp badge in bottom-left corner
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(6.dp)
+                                .background(
+                                    Color.Black.copy(alpha = 0.7f),
+                                    RoundedCornerShape(4.dp)
+                                )
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = chapter.formatStartTime(),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White
+                            )
+                        }
+                        
+                        // Play icon overlay
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .size(36.dp)
+                                .background(
+                                    Color.Black.copy(alpha = 0.5f),
+                                    CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = "Play from chapter",
+                                modifier = Modifier.size(24.dp),
+                                tint = Color.White
+                            )
+                        }
+                    }
+                }
+            },
+            title = { }
+        )
+        
+        // Chapter name below the card
+        Text(
+            text = chapter.Name ?: "Chapter ${chapterIndex + 1}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+fun SubtitleSelectionDialog(
+    item: JellyfinItem,
+    apiService: JellyfinApiService?,
+    onDismiss: () -> Unit,
+    onSubtitleSelected: (subtitleStreamIndex: Int?) -> Unit,
+    onDownloadedSubtitleSelected: ((String) -> Unit)? = null // File path of downloaded subtitle
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    
+    var itemDetails by remember { mutableStateOf<JellyfinItem?>(null) }
+    var isLoadingSubtitles by remember { mutableStateOf(true) }
+    
+    // OpenSubtitles download state
+    var showLanguageDialog by remember { mutableStateOf(false) }
+    var showApiKeyRequiredDialog by remember { mutableStateOf(false) }
+    var showSearchResults by remember { mutableStateOf(false) }
+    var isSearching by remember { mutableStateOf(false) }
+    var isDownloading by remember { mutableStateOf(false) }
+    var downloadingSubtitleName by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<com.flex.elefin.subtitles.SubtitleResult>>(emptyList()) }
+    var downloadedSubtitles by remember { mutableStateOf<List<com.flex.elefin.subtitles.DownloadedSubtitle>>(emptyList()) }
+    
+    // Get OpenSubtitles settings
+    val settings = remember { com.flex.elefin.jellyfin.AppSettings(context) }
+    val openSubtitlesApiKey = remember { settings.openSubtitlesApiKey }
+    val openSubtitlesUsername = remember { settings.openSubtitlesUsername }
+    val openSubtitlesPassword = remember { settings.openSubtitlesPassword }
+    
+    // Load downloaded subtitles
+    LaunchedEffect(item.Id) {
+        downloadedSubtitles = com.flex.elefin.subtitles.OpenSubtitlesApi.getDownloadedSubtitles(context, item.Id)
+    }
+    
+    // Fetch full item details to get MediaSources with subtitle streams
+    // First refresh the item on the server to detect any newly added external subtitles
+    LaunchedEffect(item.Id, apiService) {
+        if (apiService != null) {
+            withContext(Dispatchers.IO) {
+                try {
+                    // Refresh item metadata on server to detect new external subtitle files
+                    Log.d("SubtitleDialog", "Refreshing item metadata to detect new subtitles...")
+                    apiService.refreshItemMetadata(item.Id)
+                    
+                    // Small delay to allow server to process the refresh
+                    kotlinx.coroutines.delay(500)
+                    
+                    // Now fetch the updated item details
+                    val details = apiService.getItemDetails(item.Id)
+                    itemDetails = details
+                    isLoadingSubtitles = false
+                    
+                    val subtitleCount = details?.MediaSources?.firstOrNull()?.MediaStreams
+                        ?.count { it.Type == "Subtitle" } ?: 0
+                    Log.d("SubtitleDialog", "Loaded $subtitleCount subtitle streams after refresh")
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    // Normal cancellation when composable leaves composition - don't log as error
+                    throw e // Re-throw to respect cancellation
+                } catch (e: Exception) {
+                    Log.e("SubtitleDialog", "Error fetching item details", e)
+                    isLoadingSubtitles = false
+                }
+            }
+        } else {
+            isLoadingSubtitles = false
+        }
+    }
+    
+    // Get subtitle streams from MediaSources
+    val subtitleStreams = remember(itemDetails?.MediaSources) {
+        itemDetails?.MediaSources?.firstOrNull()?.MediaStreams
+            ?.filter { it.Type == "Subtitle" }
+            ?.sortedBy { it.Index ?: 0 } ?: emptyList()
+    }
+    
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.7f)),
+            contentAlignment = Alignment.Center
+        ) {
+            androidx.tv.material3.Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.3f)
+                    .fillMaxHeight(0.5f),
+                shape = RoundedCornerShape(16.dp),
+                colors = androidx.tv.material3.SurfaceDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    // Dialog title - 30% smaller
+                    Text(
+                        text = "Select Subtitles",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.7f
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    
+                    // Custom colors for ListItem - purple focus to match toggle switches
+                    val listItemColors = androidx.tv.material3.ListItemDefaults.colors(
+                        containerColor = Color.Transparent,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        focusedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), // Purple like toggle
+                        focusedContentColor = Color.White,
+                        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                        selectedContentColor = Color.White
+                    )
+                    
+                    // Vertical list of subtitle options using ListItem
+                    if (isLoadingSubtitles) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Loading subtitles...",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.7f
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            contentPadding = PaddingValues(vertical = 4.dp)
+                        ) {
+                            // "None" option to disable subtitles
+                            item {
+                                ListItem(
+                                    selected = false,
+                                    onClick = {
+                                        onSubtitleSelected(null)
+                                        onDismiss()
+                                    },
+                                    colors = listItemColors,
+                                    headlineContent = {
+                                        Text(
+                                            text = "None (Off)",
+                                            style = MaterialTheme.typography.bodyLarge.copy(
+                                                fontSize = MaterialTheme.typography.bodyLarge.fontSize * 0.7f
+                                            )
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                            
+                            // Subtitle stream options
+                            items(subtitleStreams) { stream ->
+                                val subtitleTitle = stream.DisplayTitle
+                                    ?: stream.Language
+                                    ?: "Unknown"
+                                val subtitleInfo = buildString {
+                                    if (stream.IsDefault == true) append("Default")
+                                    if (stream.IsForced == true) {
+                                        if (isNotEmpty()) append(", ")
+                                        append("Forced")
+                                    }
+                                    if (stream.IsExternal == true) {
+                                        if (isNotEmpty()) append(", ")
+                                        append("External")
+                                    }
+                                }
+                                
+                                ListItem(
+                                    selected = false,
+                                    onClick = {
+                                        stream.Index?.let { index ->
+                                            onSubtitleSelected(index)
+                                            onDismiss()
+                                        }
+                                    },
+                                    colors = listItemColors,
+                                    headlineContent = {
+                                        Column {
+                                            Text(
+                                                text = subtitleTitle,
+                                                style = MaterialTheme.typography.bodyLarge.copy(
+                                                    fontSize = MaterialTheme.typography.bodyLarge.fontSize * 0.7f
+                                                )
+                                            )
+                                            if (subtitleInfo.isNotEmpty()) {
+                                                Text(
+                                                    text = subtitleInfo,
+                                                    style = MaterialTheme.typography.bodySmall.copy(
+                                                        fontSize = MaterialTheme.typography.bodySmall.fontSize * 0.7f
+                                                    ),
+                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                            
+                            // If no subtitles available
+                            if (subtitleStreams.isEmpty() && downloadedSubtitles.isEmpty()) {
+                                item {
+                                    Text(
+                                        text = "No subtitles available",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.7f
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                        modifier = Modifier.padding(16.dp)
+                                    )
+                                }
+                            }
+                            
+                            // Divider before downloaded subtitles
+                            if (downloadedSubtitles.isNotEmpty()) {
+                                item {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "Downloaded Subtitles",
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontSize = MaterialTheme.typography.labelMedium.fontSize * 0.8f
+                                        ),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                                
+                                // Downloaded subtitle options
+                                items(downloadedSubtitles) { downloadedSub ->
+                                    ListItem(
+                                        selected = false,
+                                        onClick = {
+                                            onDownloadedSubtitleSelected?.invoke(downloadedSub.filePath)
+                                            onDismiss()
+                                        },
+                                        colors = listItemColors,
+                                        headlineContent = {
+                                            Column {
+                                                Text(
+                                                    text = com.flex.elefin.subtitles.SubtitleLanguages.getDisplayName(downloadedSub.language),
+                                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                                        fontSize = MaterialTheme.typography.bodyLarge.fontSize * 0.7f
+                                                    )
+                                                )
+                                                Text(
+                                                    text = downloadedSub.release,
+                                                    style = MaterialTheme.typography.bodySmall.copy(
+                                                        fontSize = MaterialTheme.typography.bodySmall.fontSize * 0.7f
+                                                    ),
+                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        },
+                                        leadingContent = {
+                                            androidx.compose.material3.Icon(
+                                                imageVector = androidx.compose.material.icons.Icons.Default.Download,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+                            
+                            // Download Subtitles button
+                            item {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(
+                                    onClick = { 
+                                        // Check if API key and credentials are configured
+                                        if (openSubtitlesApiKey.isNotBlank() && 
+                                            openSubtitlesUsername.isNotBlank() && 
+                                            openSubtitlesPassword.isNotBlank()) {
+                                            com.flex.elefin.subtitles.OpenSubtitlesApi.setApiKey(openSubtitlesApiKey)
+                                            com.flex.elefin.subtitles.OpenSubtitlesApi.setCredentials(openSubtitlesUsername, openSubtitlesPassword)
+                                            showLanguageDialog = true
+                                        } else {
+                                            showApiKeyRequiredDialog = true
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp)
+                                ) {
+                                    androidx.compose.material3.Icon(
+                                        imageVector = androidx.compose.material.icons.Icons.Default.CloudDownload,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Download Subtitles",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.8f
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Language selection dialog
+    if (showLanguageDialog) {
+        com.flex.elefin.subtitles.SubtitleLanguageDialog(
+            onSelect = { language ->
+                showLanguageDialog = false
+                isSearching = true
+                showSearchResults = true
+                
+                // Search OpenSubtitles
+                scope.launch {
+                    try {
+                        val imdbId = item.ProviderIds?.get("Imdb")
+                        val tmdbId = item.ProviderIds?.get("Tmdb")
+                        
+                        searchResults = com.flex.elefin.subtitles.OpenSubtitlesApi.searchSubtitles(
+                            imdbId = imdbId,
+                            tmdbId = tmdbId,
+                            query = if (imdbId == null && tmdbId == null) item.Name else null,
+                            language = language
+                        )
+                    } catch (e: Exception) {
+                        Log.e("SubtitleDialog", "Error searching subtitles", e)
+                        searchResults = emptyList()
+                    } finally {
+                        isSearching = false
+                    }
+                }
+            },
+            onDismiss = { showLanguageDialog = false }
+        )
+    }
+    
+    // API key required dialog
+    if (showApiKeyRequiredDialog) {
+        com.flex.elefin.subtitles.ApiKeyRequiredDialog(
+            onGoToSettings = {
+                showApiKeyRequiredDialog = false
+                onDismiss() // Close the subtitle dialog and go back
+                // User needs to go to Settings manually
+            },
+            onDismiss = { showApiKeyRequiredDialog = false }
+        )
+    }
+    
+    // Search results dialog
+    if (showSearchResults) {
+        com.flex.elefin.subtitles.SubtitleResultsDialog(
+            results = searchResults,
+            isLoading = isSearching,
+            onSelect = { subtitle ->
+                showSearchResults = false
+                isDownloading = true
+                downloadingSubtitleName = subtitle.attributes.release ?: "Subtitle"
+                
+                // Download the subtitle
+                scope.launch {
+                    try {
+                        val filePath = com.flex.elefin.subtitles.OpenSubtitlesApi.downloadAndSaveSubtitle(
+                            context = context,
+                            itemId = item.Id,
+                            subtitle = subtitle
+                        )
+                        
+                        if (filePath != null) {
+                            // Refresh downloaded subtitles list
+                            downloadedSubtitles = com.flex.elefin.subtitles.OpenSubtitlesApi.getDownloadedSubtitles(context, item.Id)
+                            
+                            // Optionally auto-select the downloaded subtitle
+                            onDownloadedSubtitleSelected?.invoke(filePath)
+                            onDismiss()
+                        } else {
+                            // Show error toast
+                            val errorMsg = com.flex.elefin.subtitles.OpenSubtitlesApi.lastError 
+                                ?: "Download failed"
+                            android.widget.Toast.makeText(context, errorMsg, android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    } catch (e: Exception) {
+                        Log.e("SubtitleDialog", "Error downloading subtitle", e)
+                        android.widget.Toast.makeText(context, "Download failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                    } finally {
+                        isDownloading = false
+                    }
+                }
+            },
+            onDismiss = { showSearchResults = false }
+        )
+    }
+    
+    // Downloading dialog
+    if (isDownloading) {
+        com.flex.elefin.subtitles.SubtitleDownloadingDialog(
+            subtitleName = downloadingSubtitleName
+        )
+    }
+}
+
+@Composable
+fun AudioSelectionDialog(
+    item: JellyfinItem,
+    apiService: JellyfinApiService?,
+    onDismiss: () -> Unit,
+    onAudioSelected: (audioStreamIndex: Int?) -> Unit
+) {
+    var itemDetails by remember { mutableStateOf<JellyfinItem?>(null) }
+    var isLoadingAudio by remember { mutableStateOf(true) }
+    
+    // Fetch full item details to get MediaSources with audio streams
+    LaunchedEffect(item.Id, apiService) {
+        Log.d("AudioDialog", "LaunchedEffect triggered for item ${item.Id}, apiService=${apiService != null}")
+        if (apiService != null) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val details = apiService.getItemDetails(item.Id)
+                    Log.d("AudioDialog", "Fetched details: ${details?.Name}, MediaSources: ${details?.MediaSources?.size ?: 0}")
+                    details?.MediaSources?.firstOrNull()?.MediaStreams?.let { streams ->
+                        val audioStreams = streams.filter { it.Type == "Audio" }
+                        Log.d("AudioDialog", "Found ${audioStreams.size} audio streams: ${audioStreams.map { "Index=${it.Index}, Lang=${it.Language}, Codec=${it.Codec}" }}")
+                    }
+                    itemDetails = details
+                    isLoadingAudio = false
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e("AudioDialog", "Error fetching item details", e)
+                    isLoadingAudio = false
+                }
+            }
+        } else {
+            Log.w("AudioDialog", "apiService is null, cannot fetch audio tracks")
+            isLoadingAudio = false
+        }
+    }
+    
+    // Get audio streams from MediaSources
+    val audioStreams = remember(itemDetails?.MediaSources) {
+        val streams = itemDetails?.MediaSources?.firstOrNull()?.MediaStreams
+            ?.filter { it.Type == "Audio" }
+            ?.sortedBy { it.Index ?: 0 } ?: emptyList()
+        Log.d("AudioDialog", "audioStreams remember computed: ${streams.size} streams")
+        streams
+    }
+    
+    val context = LocalContext.current
+    val storedAudioIndex = remember(context, item.Id) { 
+        com.flex.elefin.jellyfin.AppSettings(context).getAudioPreference(item.Id) 
+    }
+    
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.7f)),
+            contentAlignment = Alignment.Center
+        ) {
+            androidx.tv.material3.Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.3f)
+                    .fillMaxHeight(0.5f),
+                shape = RoundedCornerShape(16.dp),
+                colors = androidx.tv.material3.SurfaceDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    // Dialog title
+                    Text(
+                        text = "Select Audio Track",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.7f
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    
+                    // Custom colors for ListItem - purple focus to match subtitle selector
+                    val listItemColors = androidx.tv.material3.ListItemDefaults.colors(
+                        containerColor = Color.Transparent,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        focusedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                        focusedContentColor = Color.White,
+                        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                        selectedContentColor = Color.White
+                    )
+                    
+                    // Vertical list of audio track options
+                    if (isLoadingAudio) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Loading audio tracks...",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.7f
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            contentPadding = PaddingValues(vertical = 4.dp)
+                        ) {
+                            // Audio stream options
+                            items(audioStreams) { stream ->
+                                val audioTitle = stream.DisplayTitle
+                                    ?: stream.Language
+                                    ?: "Unknown"
+                                val audioInfo = buildString {
+                                    stream.Codec?.let { 
+                                        append(it)
+                                    }
+                                }
+                                val isSelected = stream.Index != null && stream.Index == storedAudioIndex
+                                
+                                ListItem(
+                                    selected = isSelected,
+                                    onClick = {
+                                        stream.Index?.let { index ->
+                                            onAudioSelected(index)
+                                            onDismiss()
+                                        }
+                                    },
+                                    colors = listItemColors,
+                                    headlineContent = {
+                                        Column {
+                                            Text(
+                                                text = audioTitle,
+                                                style = MaterialTheme.typography.bodyLarge.copy(
+                                                    fontSize = MaterialTheme.typography.bodyLarge.fontSize * 0.7f
+                                                )
+                                            )
+                                            if (audioInfo.isNotEmpty()) {
+                                                Text(
+                                                    text = audioInfo,
+                                                    style = MaterialTheme.typography.bodySmall.copy(
+                                                        fontSize = MaterialTheme.typography.bodySmall.fontSize * 0.7f
+                                                    ),
+                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                            
+                            // If no audio tracks available
+                            if (audioStreams.isEmpty()) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "No audio tracks available",
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.7f
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ActionButtonsRow(
+    item: JellyfinItem,
+    apiService: JellyfinApiService?,
+    onShowSettings: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val settings = remember { com.flex.elefin.jellyfin.AppSettings(context) }
+    val useAnimatedButton = settings.useAnimatedPlayButton
+    
+    // Internal state to handle local updates (like Mark as Watched)
+    var internalItem by remember { mutableStateOf<JellyfinItem?>(null) }
+    
+    // Reset internal state when parent item updates (e.g. returning from playback)
+    LaunchedEffect(item) {
+        internalItem = null
+    }
+    
+    val displayItem = internalItem ?: item
+
+    // Trailer state
+    var trailerKey by remember { mutableStateOf<String?>(null) }
+    
+    // Fetch trailer (TMDB Direct Fallback)
+    LaunchedEffect(displayItem, settings.tmdbApiKey) {
+        trailerKey = null // Reset
+        
+        // Fallback to TMDB directly if key configured
+        if (settings.tmdbApiKey.isNotBlank()) {
+             val tmdbId = displayItem.ProviderIds?.get("Tmdb") ?: displayItem.ProviderIds?.get("tmdb") ?: displayItem.ProviderIds?.get("TMDB")
+             Log.d("ActionButtonsRow", "Checking TMDB Trailer for ${displayItem.Name}. API Key present: ${settings.tmdbApiKey.isNotBlank()}, TMDB ID: $tmdbId")
+             
+             if (tmdbId != null) {
+                 try {
+                     withContext(Dispatchers.IO) {
+                         // Determine audio language to request localized trailers
+                         val audioLang = displayItem.MediaSources?.firstOrNull()?.MediaStreams
+                             ?.firstOrNull { it.Type == "Audio" && it.IsDefault == true }?.Language
+                             ?: displayItem.MediaSources?.firstOrNull()?.MediaStreams
+                                 ?.firstOrNull { it.Type == "Audio" }?.Language
+                         
+                         var iso639Code: String? = null
+                         if (audioLang != null) {
+                             try {
+                                 // Convert 3-letter code (eng) to 2-letter (en) if needed
+                                 iso639Code = java.util.Locale(audioLang).language
+                                 // Handle edge cases where Locale doesn't convert 3-letter properly (though usually it does if valid)
+                                 if (iso639Code == audioLang && audioLang.length == 3) {
+                                     // Fallback for some codes if Locale constructor didn't parse it as iso3
+                                     iso639Code = java.util.Locale.getAvailableLocales()
+                                         .find { try { it.getISO3Language() == audioLang } catch (e: Exception) { false } }?.language ?: audioLang.take(2)
+                                 }
+                                 Log.d("ActionButtonsRow", "Detected audio language: $audioLang -> ISO-639-1: $iso639Code")
+                             } catch (e: Exception) {
+                                  Log.w("ActionButtonsRow", "Could not parse language: $audioLang")
+                             }
+                         }
+
+                         Log.d("ActionButtonsRow", "Fetching videos for ID: $tmdbId (Language: $iso639Code)")
+                         val videos = TmdbApiService.getVideos(
+                             tmdbId = tmdbId.toInt(),
+                             type = if (displayItem.Type == "Series" || displayItem.Type == "Season" || displayItem.Type == "Episode") "tv" else "movie",
+                             apiKey = settings.tmdbApiKey,
+                             language = iso639Code
+                         )
+                         Log.d("ActionButtonsRow", "Fetched ${videos.size} videos from TMDB")
+                         // Prefer official trailers, then any trailer, then any video
+                         // Also prefer matching language if multiple returned
+                         val trailer = videos.firstOrNull { it.site == "YouTube" && it.type == "Trailer" && it.official && (iso639Code == null || it.iso6391 == iso639Code) }
+                             ?: videos.firstOrNull { it.site == "YouTube" && it.type == "Trailer" && it.official }
+                             ?: videos.firstOrNull { it.site == "YouTube" && it.type == "Trailer" }
+                             ?: videos.firstOrNull { it.site == "YouTube" }
+                         
+                         if (trailer != null) {
+                             trailerKey = trailer.key
+                             Log.d("ActionButtonsRow", "Found trailer via TMDB: ${trailer.key} (Lang: ${trailer.iso6391})")
+                         } else {
+                             Log.d("ActionButtonsRow", "No suitable trailer found in video list")
+                         }
+                     }
+                 } catch (e: Exception) {
+                     Log.e("ActionButtonsRow", "Error fetching TMDB trailer", e)
+                 }
+             } else {
+                 Log.d("ActionButtonsRow", "No TMDB ID found for item: ${displayItem.Name}")
+             }
+        }
+    }
+    
+    // Check if media has multiple audio tracks
+    val audioStreamCount = remember(displayItem.MediaSources) {
+        displayItem.MediaSources?.firstOrNull()?.MediaStreams
+            ?.count { it.Type == "Audio" } ?: 0
+    }
+    val hasMultiAudio = audioStreamCount > 1
+    
+    // Log UserData for debugging
+    Log.d("ActionButtonsRow", "Checking resume status for item: ${displayItem.Id} (${displayItem.Name})")
+    Log.d("ActionButtonsRow", "UserData: ${displayItem.UserData}")
+    Log.d("ActionButtonsRow", "UserData.PositionTicks: ${displayItem.UserData?.PositionTicks}")
+    Log.d("ActionButtonsRow", "UserData.PlayedPercentage: ${displayItem.UserData?.PlayedPercentage}")
+    
+    val isResumable = displayItem.UserData?.PositionTicks != null && displayItem.UserData?.PositionTicks!! > 0
+    val resumePositionMs = displayItem.UserData?.PositionTicks?.let { it / 10_000 } ?: 0L
+    
+    Log.d("ActionButtonsRow", "isResumable: $isResumable, resumePositionMs: $resumePositionMs")
+    
+    var showSubtitleDialog by remember { mutableStateOf(false) }
+    var showAudioDialog by remember { mutableStateOf(false) }
+    // Load stored subtitle and audio preferences
+    var selectedSubtitleIndex by remember { mutableStateOf<Int?>(settings.getSubtitlePreference(item.Id)) }
+    var selectedAudioIndex by remember { mutableStateOf<Int?>(settings.getAudioPreference(item.Id)) }
+    
+    // Refresh subtitle and audio preferences when returning to this screen
+    LaunchedEffect(item.Id) {
+        selectedSubtitleIndex = settings.getSubtitlePreference(item.Id)
+        selectedAudioIndex = settings.getAudioPreference(item.Id)
+    }
+    
+    // Change label to "Play From Start" when there's a resume button
+    // Calculate default subtitle/audio indices if none selected
+    val defaultSubtitleIndex = null
+    
+    val defaultAudioIndex = remember(displayItem.MediaSources) {
+        displayItem.MediaSources?.firstOrNull()?.MediaStreams?.let { streams ->
+             streams.firstOrNull { it.Type == "Audio" && it.IsDefault == true }?.Index
+        }
+    }
+    
+    val playButtonLabel = if (isResumable) "Play From Start" else "Play"
+    
+    Row(
+        modifier = modifier
+            .padding(top = 5.6.dp, bottom = 8.dp), // 30% less top padding (8 * 0.7 = 5.6)
+        horizontalArrangement = Arrangement.spacedBy(11.2.dp), // 30% less spacing (16 * 0.7 = 11.2)
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Left side: Play buttons
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(11.2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+        // Resume button (only show if resumable, on the left)
+        AnimatedVisibility(
+            visible = isResumable,
+            enter = fadeIn() + expandHorizontally(),
+            exit = fadeOut() + shrinkHorizontally()
+        ) {
+            val resumeFocusRequester = remember { FocusRequester() }
+            
+            // Request focus on Resume button by default when resumable
+            // Use Unit as key to request focus when button first appears
+            LaunchedEffect(Unit) {
+                if (isResumable) {
+                    // Small delay to ensure button is fully composed and focusable
+                    kotlinx.coroutines.delay(50)
+                    resumeFocusRequester.requestFocus()
+                }
+            }
+            
+            if (useAnimatedButton) {
+                AnimatedPlayButton(
+                    onClick = {
+                        // Launch video player - keep MovieDetailsActivity in back stack so back button returns here
+                        val intent = JellyfinVideoPlayerActivity.createIntent(
+                            context = context,
+                            itemId = displayItem.Id,
+                            resumePositionMs = resumePositionMs,
+                            subtitleStreamIndex = selectedSubtitleIndex ?: defaultSubtitleIndex,
+                            audioStreamIndex = selectedAudioIndex ?: defaultAudioIndex
+                        )
+                        context.startActivity(intent)
+                        // Don't finish - let back button return to movie details screen
+                    },
+                    label = "Resume",
+                    containerColor = androidx.compose.ui.graphics.Color.White,
+                    contentColor = androidx.compose.ui.graphics.Color.Black,
+                    modifier = Modifier.focusRequester(resumeFocusRequester)
+                )
+            } else {
+                var resumeFocused by remember { mutableStateOf(false) }
+                
+                Button(
+                    onClick = {
+                        // Launch video player - keep MovieDetailsActivity in back stack so back button returns here
+                        val intent = JellyfinVideoPlayerActivity.createIntent(
+                            context = context,
+                            itemId = displayItem.Id,
+                            resumePositionMs = resumePositionMs,
+                            subtitleStreamIndex = selectedSubtitleIndex ?: defaultSubtitleIndex,
+                            audioStreamIndex = selectedAudioIndex ?: defaultAudioIndex
+                        )
+                        context.startActivity(intent)
+                        // Don't finish - let back button return to movie details screen
+                    },
+                    modifier = Modifier
+                        .focusRequester(resumeFocusRequester)
+                        .then(
+                            if (resumeFocused) {
+                                Modifier
+                                    .wrapContentWidth()
+                                    .height(28.dp)
+                            } else {
+                                Modifier.size(28.dp)
+                            }
+                        )
+                        .animateContentSize(
+                            animationSpec = tween(
+                                durationMillis = 300,
+                                easing = FastOutSlowInEasing
+                            )
+                        )
+                        .onFocusChanged { resumeFocused = it.isFocused }
+                        .clip(CircleShape),
+                    colors = ButtonDefaults.colors(
+                        containerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f),
+                        contentColor = androidx.compose.ui.graphics.Color.White,
+                        focusedContainerColor = androidx.compose.ui.graphics.Color.White,
+                        focusedContentColor = androidx.compose.ui.graphics.Color.Black
+                    ),
+                    shape = ButtonDefaults.shape(CircleShape),
+                    contentPadding = PaddingValues(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Resume",
+                        modifier = Modifier.size(14.3.dp)
+                    )
+                    if (resumeFocused) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Resume",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
+                            ),
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
+                    }
+                }
+            }
+        }
+        
+        // Play button - always shows, plays from beginning
+        if (useAnimatedButton) {
+            AnimatedPlayButton(
+                onClick = {
+                    // Launch video player - keep MovieDetailsActivity in back stack so back button returns here
+                        val intent = JellyfinVideoPlayerActivity.createIntent(
+                            context = context,
+                            itemId = displayItem.Id,
+                            resumePositionMs = 0L,
+                            subtitleStreamIndex = selectedSubtitleIndex ?: defaultSubtitleIndex,
+                            audioStreamIndex = selectedAudioIndex ?: defaultAudioIndex
+                        )
+                    context.startActivity(intent)
+                    // Don't finish - let back button return to movie details screen
+                },
+                label = playButtonLabel,
+                containerColor = androidx.compose.ui.graphics.Color.White,
+                contentColor = androidx.compose.ui.graphics.Color.Black
+            )
+        }
+ else {
+            var playFocused by remember { mutableStateOf(false) }
+            
+            Button(
+                onClick = {
+                    // Launch video player - keep MovieDetailsActivity in back stack so back button returns here
+                        val intent = JellyfinVideoPlayerActivity.createIntent(
+                            context = context,
+                            itemId = displayItem.Id,
+                            resumePositionMs = 0L,
+                            subtitleStreamIndex = selectedSubtitleIndex ?: defaultSubtitleIndex,
+                            audioStreamIndex = selectedAudioIndex ?: defaultAudioIndex
+                        )
+                    context.startActivity(intent)
+                    // Don't finish - let back button return to movie details screen
+                },
+                modifier = Modifier
+                    .then(
+                        if (playFocused) {
+                            Modifier
+                                .wrapContentWidth()
+                                .height(28.dp)
+                        } else {
+                            Modifier.size(28.dp)
+                        }
+                    )
+                    .animateContentSize(
+                        animationSpec = tween(
+                            durationMillis = 300,
+                            easing = FastOutSlowInEasing
+                        )
+                    )
+                    .onFocusChanged { playFocused = it.isFocused }
+                    .clip(CircleShape),
+                colors = ButtonDefaults.colors(
+                    containerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f),
+                    contentColor = androidx.compose.ui.graphics.Color.White,
+                    focusedContainerColor = androidx.compose.ui.graphics.Color.White,
+                    focusedContentColor = androidx.compose.ui.graphics.Color.Black
+                ),
+                    shape = ButtonDefaults.shape(CircleShape),
+                contentPadding = PaddingValues(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = "Play",
+                    modifier = Modifier.size(14.3.dp)
+                )
+                if (playFocused) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    AnimatedContent(
+                        targetState = playButtonLabel,
+                        transitionSpec = {
+                            fadeIn(animationSpec = tween(220, delayMillis = 90)) togetherWith
+                            fadeOut(animationSpec = tween(90))
+                        },
+                        label = "PlayButtonLabelAnimation"
+                    ) { targetLabel ->
+                        Text(
+                            text = targetLabel,
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
+                            ),
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
+                    }
+                }
+            }
+        }
+        }
+        
+
+
+        // Audio track button (only show if media has multiple audio tracks)
+        if (hasMultiAudio) {
+        var audioFocused by remember { mutableStateOf(false) }
+        
+        Button(
+            onClick = {
+                showAudioDialog = true
+            },
+            modifier = Modifier
+                .then(
+                    if (audioFocused) {
+                        Modifier
+                            .wrapContentWidth()
+                            .height(28.dp)
+                    } else {
+                        Modifier.size(28.dp)
+                    }
+                )
+                .animateContentSize(
+                    animationSpec = tween(
+                        durationMillis = 300,
+                        easing = FastOutSlowInEasing
+                    )
+                )
+                .onFocusChanged { audioFocused = it.isFocused }
+                .clip(CircleShape),
+                colors = ButtonDefaults.colors(
+                    containerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f),
+                    contentColor = androidx.compose.ui.graphics.Color.White,
+                    focusedContainerColor = androidx.compose.ui.graphics.Color.White,
+                    focusedContentColor = androidx.compose.ui.graphics.Color.Black
+                ),
+                shape = ButtonDefaults.shape(CircleShape),
+                contentPadding = PaddingValues(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.VolumeUp,
+                contentDescription = "Audio Track",
+                modifier = Modifier.size(14.3.dp)
+            )
+            if (audioFocused) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Audio",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
+                    ),
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+                }
+            }
+        }
+        
+        // Subtitles button
+        var subtitleFocused by remember { mutableStateOf(false) }
+        
+        Button(
+            onClick = {
+                showSubtitleDialog = true
+            },
+            modifier = Modifier
+                .then(
+                    if (subtitleFocused) {
+                        Modifier
+                            .wrapContentWidth()
+                            .height(28.dp)
+                    } else {
+                        Modifier.size(28.dp)
+                    }
+                )
+                .animateContentSize(
+                    animationSpec = tween(
+                        durationMillis = 300,
+                        easing = FastOutSlowInEasing
+                    )
+                )
+                .onFocusChanged { subtitleFocused = it.isFocused }
+                .clip(CircleShape),
+            colors = ButtonDefaults.colors(
+                containerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f),
+                contentColor = androidx.compose.ui.graphics.Color.White,
+                focusedContainerColor = androidx.compose.ui.graphics.Color.White,
+                focusedContentColor = androidx.compose.ui.graphics.Color.Black
+            ),
+            shape = ButtonDefaults.shape(CircleShape),
+            contentPadding = PaddingValues(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Language,
+                contentDescription = "Subtitles",
+                modifier = Modifier.size(14.3.dp)
+            )
+            if (subtitleFocused) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Subtitles",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
+                    ),
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+            }
+        }
+        
+        // Trailer button - always shows
+        var trailerFocused by remember { mutableStateOf(false) }
+        
+        Button(
+            onClick = {
+                if (trailerKey != null) {
+                    trailerKey?.let { key ->
+                        TrailerLauncher.launchTmdbTrailer(context, key, displayItem.Name ?: "")
+                    }
+                } else {
+                    // Prompt user to enter TMDB key
+                    android.widget.Toast.makeText(
+                        context,
+                        "Please enter your TMDB API key in settings to enable trailers",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                    onShowSettings()
+                }
+            },
+            modifier = Modifier
+                .then(
+                    if (trailerFocused) {
+                        Modifier
+                            .wrapContentWidth()
+                            .height(28.dp)
+                    } else {
+                        Modifier.size(28.dp)
+                    }
+                )
+                .animateContentSize(
+                    animationSpec = tween(
+                        durationMillis = 300,
+                        easing = FastOutSlowInEasing
+                    )
+                )
+                .onFocusChanged { trailerFocused = it.isFocused }
+                .clip(CircleShape),
+            colors = ButtonDefaults.colors(
+                containerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f),
+                contentColor = androidx.compose.ui.graphics.Color.White,
+                focusedContainerColor = androidx.compose.ui.graphics.Color.White,
+                focusedContentColor = androidx.compose.ui.graphics.Color.Black
+            ),
+            shape = ButtonDefaults.shape(CircleShape),
+            contentPadding = PaddingValues(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Movie,
+                contentDescription = "Watch Trailer",
+                modifier = Modifier.size(14.3.dp)
+            )
+            if (trailerFocused) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Watch Trailer",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
+                    ),
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+            }
+        }
+
+        // Mark as Watched/Unwatched button
+        val isAlreadyWatched = (displayItem.UserData?.Played == true) ||
+                               (displayItem.UserData?.PlayedPercentage == 100.0)
+        
+        var watchedFocused by remember { mutableStateOf(false) }
+        
+        Button(
+            onClick = {
+                apiService?.let { service ->
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            val success = if (isAlreadyWatched) {
+                                // Mark as unwatched
+                                service.markAsUnwatched(displayItem.Id)
+                            } else {
+                                // Mark as watched
+                                service.markAsWatched(displayItem.Id)
+                            }
+                            
+                            if (success) {
+                                val action = if (isAlreadyWatched) "unwatched" else "watched"
+                                android.util.Log.d("MovieDetails", "Item ${displayItem.Id} marked as $action")
+                                // Add a small delay to let the server process the status change
+                                delay(800)
+                                val refreshedDetails = service.getItemDetails(displayItem.Id)
+                                if (refreshedDetails != null) {
+                                    withContext(Dispatchers.Main) {
+                                        internalItem = refreshedDetails
+                                    }
+                                    android.util.Log.d("MovieDetails", "Item details refreshed, Played=${refreshedDetails.UserData?.Played}, PlayedPercentage: ${refreshedDetails.UserData?.PlayedPercentage}")
+                                }
+                            } else {
+                                val action = if (isAlreadyWatched) "unwatched" else "watched"
+                                android.util.Log.w("MovieDetails", "Failed to mark item as $action")
+                            }
+                        } catch (e: Exception) {
+                            val action = if (isAlreadyWatched) "unwatched" else "watched"
+                            android.util.Log.e("MovieDetails", "Error marking item as $action", e)
+                        }
+                    }
+                }
+            },
+            modifier = Modifier
+                .then(
+                    if (watchedFocused) {
+                        Modifier
+                            .wrapContentWidth()
+                            .height(28.dp)
+                    } else {
+                        Modifier.size(28.dp)
+                    }
+                )
+                .animateContentSize(
+                    animationSpec = tween(
+                        durationMillis = 300,
+                        easing = FastOutSlowInEasing
+                    )
+                )
+                .onFocusChanged { watchedFocused = it.isFocused }
+                .clip(CircleShape),
+            colors = ButtonDefaults.colors(
+                containerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f),
+                contentColor = androidx.compose.ui.graphics.Color.White,
+                focusedContainerColor = androidx.compose.ui.graphics.Color.White,
+                focusedContentColor = androidx.compose.ui.graphics.Color.Black
+            ),
+            shape = ButtonDefaults.shape(CircleShape),
+            contentPadding = PaddingValues(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = if (isAlreadyWatched) "Mark As Unwatched" else "Mark As Watched",
+                modifier = Modifier.size(14.3.dp)
+            )
+            if (watchedFocused) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (isAlreadyWatched) "Mark As Unwatched" else "Mark As Watched",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontSize = MaterialTheme.typography.labelLarge.fontSize * 0.7f
+                    )
+                )
+            }
+        }
+        
+        // Right side: Spacer to push audio/subtitle display to the right
+        Spacer(modifier = Modifier.weight(1f))
+        
+        // Applied subtitle display (right-aligned)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Applied subtitle display
+            if (selectedSubtitleIndex != null) {
+                val subtitleStream = displayItem.MediaSources?.firstOrNull()?.MediaStreams
+                    ?.find { it.Type == "Subtitle" && it.Index == selectedSubtitleIndex }
+                subtitleStream?.let { stream ->
+                    val subtitleName = stream.DisplayTitle ?: stream.Language ?: "Unknown"
+                    MetadataBox(text = subtitleName, icon = Icons.Default.Language)
+                }
+            }
+        }
+    }
+    
+    // Subtitle selection dialog
+    if (showSubtitleDialog) {
+        SubtitleSelectionDialog(
+            item = displayItem,
+            apiService = apiService,
+            onDismiss = { showSubtitleDialog = false },
+            onSubtitleSelected = { subtitleIndex ->
+                selectedSubtitleIndex = subtitleIndex
+                settings.setSubtitlePreference(item.Id, subtitleIndex)
+                showSubtitleDialog = false  // Close dialog after selection
+                
+                // ⭐ Pre-download subtitle when selected (before playback starts)
+                if (subtitleIndex != null && apiService != null) {
+                    scope.launch {
+                        try {
+                            val mediaSource = displayItem.MediaSources?.firstOrNull()
+                            val mediaSourceId = mediaSource?.Id ?: displayItem.Id
+                            val subtitleStream = mediaSource?.MediaStreams
+                                ?.find { it.Type == "Subtitle" && it.Index == subtitleIndex }
+                            
+                            if (subtitleStream != null) {
+                                android.util.Log.d("MovieDetails", "Pre-downloading selected subtitle: ${subtitleStream.DisplayTitle}")
+                                com.flex.elefin.player.SubtitleDownloader.downloadSubtitle(
+                                    context = context,
+                                    apiService = apiService,
+                                    itemId = item.Id,
+                                    mediaSourceId = mediaSourceId,
+                                    stream = subtitleStream
+                                )
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("MovieDetails", "Error pre-downloading subtitle", e)
+                        }
+                    }
+                }
+            }
+        )
+    }
+    
+    // Audio track selection dialog
+    if (showAudioDialog) {
+        AudioSelectionDialog(
+            item = displayItem,
+            apiService = apiService,
+            onDismiss = { showAudioDialog = false },
+            onAudioSelected = { audioIndex ->
+                selectedAudioIndex = audioIndex
+                settings.setAudioPreference(item.Id, audioIndex)
+            }
+        )
+    }
+}
+
+// Helper function to format resolution to standard format (1080p, 4K, etc.)
+private fun formatResolution(width: Int?, height: Int?): String? {
+    if (width == null || height == null) return null
+    
+    return when {
+        width >= 3840 || height >= 2160 -> "4K"
+        width >= 1920 || height >= 1080 -> "1080p"
+        width >= 1280 || height >= 720 -> "720p"
+        width >= 854 || height >= 480 -> "480p"
+        else -> "${width}x${height}"
+    }
+}
+
+// Helper function to get resolution from media streams
+private fun getResolution(item: JellyfinItem): String? {
+    val videoStream = item.MediaSources
+        ?.firstOrNull()
+        ?.MediaStreams
+        ?.firstOrNull { it.Type == "Video" }
+    
+    return formatResolution(videoStream?.Width, videoStream?.Height)
+}
+
+// Metadata box component
+@Composable
+private fun MetadataBox(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null
+) {
+    Box(
+        modifier = Modifier
+            .background(Color.Black, RoundedCornerShape(4.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            icon?.let {
+                Icon(
+                    imageVector = it,
+                    contentDescription = null,
+                    modifier = Modifier.size(12.dp),
+                    tint = Color.White
+                )
+            }
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White
+            )
+        }
+    }
+}
+
+// Rating display with Rotten Tomatoes icon support
+@Composable
+private fun RatingDisplay(
+    item: JellyfinItem,
+    communityRating: Float?,
+    criticRating: Float?
+) {
+    // Calculate percentages
+    fun calculatePercentage(rating: Float): Int {
+        return if (rating > 10) {
+            // Already in percentage format (0-100)
+            rating.toInt()
+        } else {
+            // Convert from 0-10 scale to percentage
+            (rating * 10).toInt()
+        }
+    }
+    
+    // Determine critic rating type and display if available
+    val criticRatingType = if (criticRating != null) {
+        // Pass null for communityRating to focus on critic rating
+        determineRatingType(item.ProviderIds, null, criticRating, preferCommunity = false)
+    } else {
+        null
+    }
+    
+    // Determine community rating type and display if available (as audience rating)
+    val communityRatingType = if (communityRating != null) {
+        // Pass null for criticRating to focus on community rating
+        determineRatingType(item.ProviderIds, communityRating, null, preferCommunity = true)
+    } else {
+        null
+    }
+    
+    // Show critic rating (RT Fresh/Rotten or generic)
+    if (criticRating != null) {
+        val percentage = calculatePercentage(criticRating)
+        when (criticRatingType) {
+            RatingType.RottenTomatoesFresh -> {
+                RatingBoxWithIcon(
+                    percentage = percentage,
+                    iconRes = R.drawable.ic_rt_fresh,
+                    label = "RT"
+                )
+            }
+            RatingType.RottenTomatoesRotten -> {
+                RatingBoxWithIcon(
+                    percentage = percentage,
+                    iconRes = R.drawable.ic_rt_rotten,
+                    label = "RT"
+                )
+            }
+            RatingType.IMDb -> {
+                RatingBoxWithIcon(
+                    percentage = percentage,
+                    iconRes = R.drawable.ic_imdb,
+                    label = "IMDb"
+                )
+            }
+            else -> {
+                MetadataBox(text = "${percentage}%")
+            }
+        }
+    }
+    
+    // Show audience rating (RT Popcorn or generic) if available and different from critic
+    if (communityRating != null && (criticRating == null || communityRating != criticRating)) {
+        val percentage = calculatePercentage(communityRating)
+        when (communityRatingType) {
+            RatingType.RottenTomatoesAudience -> {
+                RatingBoxWithIcon(
+                    percentage = percentage,
+                    iconRes = R.drawable.ic_rt_popcorn,
+                    label = "RT"
+                )
+            }
+            RatingType.IMDb -> {
+                // Only show IMDb if we didn't already show it for critic
+                if (criticRatingType != RatingType.IMDb) {
+                    RatingBoxWithIcon(
+                        percentage = percentage,
+                        iconRes = R.drawable.ic_imdb,
+                        label = "IMDb"
+                    )
+                }
+            }
+            else -> {
+                // Show generic community rating only if we didn't show critic rating
+                if (criticRating == null) {
+                    MetadataBox(text = "${percentage}%")
+                }
+            }
+        }
+    }
+}
+
+// Rating type enum
+internal enum class RatingType {
+    RottenTomatoesFresh,
+    RottenTomatoesRotten,
+    RottenTomatoesAudience,
+    IMDb,
+    Generic
+}
+
+// Determine rating type from ProviderIds and rating values
+// Overloaded versions to handle critic-only or community-only scenarios
+private fun determineRatingType(
+    providerIds: Map<String, String>?,
+    communityRating: Float?,
+    criticRating: Float?
+): RatingType {
+    return determineRatingType(providerIds, communityRating, criticRating, false)
+}
+
+private fun determineRatingType(
+    providerIds: Map<String, String>?,
+    communityRating: Float?,
+    criticRating: Float?,
+    preferCommunity: Boolean
+): RatingType {
+    // Check for Rotten Tomatoes provider IDs first
+    val rtId = providerIds?.get("RottenTomatoes") ?: providerIds?.get("rottentomatoes") ?: 
+               providerIds?.get("Rotten Tomatoes") ?: providerIds?.get("RottenTomatoes.tomato") ?:
+               providerIds?.get("RottenTomatoes.audience")
+    
+    // If preferCommunity is true and CommunityRating exists with RT ID, return Audience
+    if (preferCommunity && rtId != null && communityRating != null) {
+        return RatingType.RottenTomatoesAudience
+    }
+    
+    // If CriticRating exists, it's likely RT Fresh/Rotten rating
+    if (criticRating != null && !preferCommunity) {
+        // RT Fresh = 60%+ (6.0/10), RT Rotten = <60%
+        // Show RT icons even if ProviderIds don't explicitly say RT, as CriticRating is typically RT
+        return if (criticRating >= 6.0f) {
+            RatingType.RottenTomatoesFresh
+        } else {
+            RatingType.RottenTomatoesRotten
+        }
+    }
+    
+    // If we have RT provider ID and CommunityRating, it might be RT Audience
+    if (rtId != null && communityRating != null) {
+        return RatingType.RottenTomatoesAudience
+    }
+    
+    // Check for IMDb
+    if (providerIds != null) {
+        val imdbId = providerIds["Imdb"] ?: providerIds["imdb"] ?: providerIds["IMDb"] ?:
+                     providerIds["imdbid"]
+        if (imdbId != null) {
+            return RatingType.IMDb
+        }
+    }
+    
+    return RatingType.Generic
+}
+
+// Rating box with icon
+@Composable
+private fun RatingBoxWithIcon(
+    percentage: Int,
+    iconRes: Int,
+    label: String
+) {
+    Box(
+        modifier = Modifier
+            .background(Color.Black, RoundedCornerShape(4.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Icon for rating source - height to match metadata item height, width adjusts to preserve aspect ratio
+            Image(
+                painter = painterResource(iconRes),
+                contentDescription = label,
+                modifier = Modifier.height(12.dp), // Match height of labelSmall text in MetadataBox
+                contentScale = ContentScale.Fit // Preserve aspect ratio, fill height
+            )
+            Text(
+                text = "${percentage}%",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White
+            )
+        }
+    }
+}
+
+// Time remaining indicator with circular progress bar
+@Composable
+private fun TimeRemainingIndicator(item: JellyfinItem) {
+    // Get runtime and current position
+    val runtimeTicks = item.RunTimeTicks ?: return
+    val positionTicks = item.UserData?.PositionTicks ?: 0L
+    
+    // Don't show if not started or runtime is invalid
+    if (runtimeTicks <= 0 || positionTicks <= 0) return
+    
+    // Calculate time remaining (10,000,000 ticks = 1 second)
+    val remainingTicks = runtimeTicks - positionTicks
+    if (remainingTicks <= 0) return // Don't show if completed
+    
+    // Convert ticks to milliseconds for accurate calculation
+    val runtimeMs = runtimeTicks / 10_000
+    val positionMs = positionTicks / 10_000
+    val remainingMs = remainingTicks / 10_000
+    
+    // Calculate progress percentage (0.0 to 1.0)
+    val progress = if (runtimeMs > 0) {
+        min(1.0f, positionMs.toFloat() / runtimeMs.toFloat())
+    } else {
+        0.0f
+    }
+    
+    // Convert remaining time to hours, minutes, and seconds
+    val totalSeconds = (remainingMs / 1000).toInt()
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    
+    // Format time remaining text with better precision
+    val timeText = when {
+        hours > 0 -> {
+            if (minutes > 0) {
+                "${hours}hr ${minutes}m left"
+            } else {
+                "${hours}hr left"
+            }
+        }
+        minutes > 0 -> {
+            if (minutes >= 5) {
+                "${minutes}m left"
+            } else {
+                // Show seconds for less than 5 minutes
+                "${minutes}m ${seconds}s left"
+            }
+        }
+        seconds > 0 -> "${seconds}s left"
+        else -> return // Don't show if less than a second
+    }
+    
+    // Circular progress bar dimensions - match metadata item height
+    val progressSize = 14.dp
+    val strokeWidth = 1.5.dp
+    
+    Box(
+        modifier = Modifier
+            .background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(4.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Circular progress bar
+            Box(
+                modifier = Modifier.size(progressSize),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val strokeWidthPx = strokeWidth.toPx()
+                    val radius = (size.minDimension - strokeWidthPx) / 2
+                    val center = Offset(size.width / 2, size.height / 2)
+                    val radius2 = radius * 2
+                    
+                    // Background circle (semi-transparent white)
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.25f),
+                        radius = radius,
+                        center = center,
+                        style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
+                    )
+                    
+                    // Progress arc (white) - shows how much has been watched
+                    if (progress > 0f && progress < 1f) {
+                        val sweepAngle = 360f * progress
+                        drawArc(
+                            color = Color.White,
+                            startAngle = -90f, // Start from top (12 o'clock)
+                            sweepAngle = sweepAngle,
+                            useCenter = false,
+                            topLeft = Offset(center.x - radius, center.y - radius),
+                            size = Size(radius2, radius2),
+                            style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
+                        )
+                    } else if (progress >= 1f) {
+                        // Fully watched - draw complete circle
+                        drawCircle(
+                            color = Color.White,
+                            radius = radius,
+                            center = center,
+                            style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
+                        )
+                    }
+                }
+            }
+            
+            // Time remaining text
+            Text(
+                text = timeText,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = MaterialTheme.typography.labelSmall.fontSize
+                ),
+                color = Color.White
+            )
+        }
+    }
+}
+
+// Helper function to format runtime
+private fun getRuntime(item: JellyfinItem): String? {
+    val runtimeTicks = item.RunTimeTicks ?: return null
+    // Convert ticks to minutes (10,000,000 ticks = 1 second)
+    val totalSeconds = runtimeTicks / 10_000_000
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    
+    return when {
+        hours > 0 -> "${hours}h ${minutes}m"
+        minutes > 0 -> "${minutes}m"
+        else -> null
+    }
+}
+

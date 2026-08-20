@@ -1,0 +1,212 @@
+package com.flex.elefin
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.tv.material3.Surface
+import com.flex.elefin.jellyfin.JellyfinItem
+import com.flex.elefin.jellyfin.AppSettings
+import com.flex.elefin.screens.JellyfinHomeScreen
+import com.flex.elefin.screens.UpdateDialog
+import com.flex.elefin.MovieDetailsActivity
+import com.flex.elefin.SeriesDetailsActivity
+import com.flex.elefin.JellyfinVideoPlayerActivity
+import com.flex.elefin.updater.GitHubRelease
+import com.flex.elefin.updater.UpdateService
+
+/**
+ * Main entry point that loads the Jellyfin home screen.
+ */
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        // Check if this is the first launch - if not, remove splash screen background
+        val settings = AppSettings(this)
+        val isFirstLaunch = settings.isFirstLaunch
+        if (!isFirstLaunch) {
+            // Remove splash screen background for subsequent launches
+            window.setBackgroundDrawableResource(android.R.color.transparent)
+        } else {
+            // Mark that we've launched at least once
+            settings.isFirstLaunch = false
+        }
+        
+        val appSettings = AppSettings(this)
+        
+        // Get version code from package manager
+        // NOTE (android5 fix): PackageInfo.longVersionCode only exists on API 28+.
+        // Accessing it directly on older Android versions throws NoSuchFieldError
+        // (an Error, NOT caught by catch(Exception)), crashing the app at launch.
+        val versionCode = try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                packageManager.getPackageInfo(packageName, 0).longVersionCode.toInt()
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(packageName, 0).versionCode
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Error getting version code", e)
+            1 // Fallback to 1
+        }
+        
+        setContent {
+            JellyfinAppTheme {
+                // Update checker (only if auto-update is enabled)
+                val settings = AppSettings(this)
+                if (settings.autoUpdateEnabled) {
+                    UpdateChecker(
+                        localVersionCode = versionCode
+                    )
+                }
+                
+                var activeTabAction by remember { mutableStateOf<String?>(null) }
+                
+                LaunchedEffect(intent) {
+                    val action = intent.getStringExtra("select_tab_action")
+                    if (action != null) {
+                        activeTabAction = action
+                        intent.removeExtra("select_tab_action")
+                    }
+                }
+                
+                Surface(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    JellyfinHomeScreen(
+                        initialTabAction = activeTabAction,
+                        onTabActionHandled = { activeTabAction = null },
+                        onItemClick = { item: JellyfinItem, resumePositionMs: Long ->
+                            // Check if this is a Jellyseerr item
+                            if (item.Id.startsWith("jellyseerr_")) {
+                                val tmdbId = item.Id.removePrefix("jellyseerr_").toIntOrNull()
+                                if (tmdbId != null) {
+                                    val mediaType = if (item.Type == "Series") "tv" else "movie"
+                                    val intent = JellyseerrDetailsActivity.createIntent(this@MainActivity, tmdbId, mediaType)
+                                    startActivity(intent)
+                                    return@JellyfinHomeScreen
+                                }
+                            }
+
+                            // Route to appropriate details screen based on item type
+                            val intent = when (item.Type) {
+                                "Series" -> {
+                                    // Auto-focus on the next episode the user needs to watch
+                                    SeriesDetailsActivity.createIntent(
+                                        context = this@MainActivity,
+                                        item = item,
+                                        fromLibrary = false, // From home screen
+                                        autoFocusNextUp = true
+                                    )
+                                }
+                                "Episode" -> {
+                                    // Episodes navigate to series details screen, focused on that episode
+                                    android.util.Log.d("MainActivity", "Episode clicked: ${item.Name}, ID: ${item.Id}, SeriesId: ${item.SeriesId}")
+                                    if (item.SeriesId != null) {
+                                        // Fetch series details first to get the series item
+                                        val seriesItem = JellyfinItem(
+                                            Id = item.SeriesId,
+                                            Name = item.SeriesName ?: ""
+                                        )
+                                        android.util.Log.d("MainActivity", "Navigating to SeriesDetailsActivity with episodeId: ${item.Id}")
+                                        SeriesDetailsActivity.createIntent(
+                                            context = this@MainActivity,
+                                            item = seriesItem,
+                                            fromLibrary = false,
+                                            episodeId = item.Id // Pass episode ID to focus on it
+                                        )
+                                    } else {
+                                        // Fallback: go directly to video player if no SeriesId
+                                        android.util.Log.w("MainActivity", "Episode has no SeriesId, going directly to player")
+                                        JellyfinVideoPlayerActivity.createIntent(
+                                            context = this@MainActivity,
+                                            itemId = item.Id,
+                                            resumePositionMs = resumePositionMs
+                                        )
+                                    }
+                                }
+                                else -> {
+                                    // Movies and other types go to movie details screen
+                                    MovieDetailsActivity.createIntent(
+                                        context = this@MainActivity,
+                                        item = item,
+                                        fromLibrary = false // From home screen
+                                    )
+                                }
+                            }
+                            startActivity(intent)
+                        },
+                        onMusicClick = {
+                            // Navigate to Music screen
+                            startActivity(MusicActivity.createIntent(this@MainActivity))
+                        },
+                        onMoviesLibraryClick = { libraryId, libraryName ->
+                            // Navigate to Movies Library screen
+                            startActivity(MoviesLibraryActivity.createIntent(this@MainActivity, libraryId, libraryName))
+                        },
+                        onTvShowsLibraryClick = { libraryId, libraryName ->
+                            // Navigate to TV Shows Library screen
+                            startActivity(TvShowsLibraryActivity.createIntent(this@MainActivity, libraryId, libraryName))
+                        },
+                        showDebugOutlines = appSettings.showDebugOutlines,
+                        preloadLibraryImages = appSettings.preloadLibraryImages,
+                        cacheLibraryImages = appSettings.cacheLibraryImages,
+                        reducePosterResolution = appSettings.reducePosterResolution
+                    )
+                }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
+}
+
+/**
+ * Composable that checks for app updates on startup
+ */
+@Composable
+private fun UpdateChecker(localVersionCode: Int) {
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    var latestRelease by remember { mutableStateOf<GitHubRelease?>(null) }
+    
+    LaunchedEffect(Unit) {
+        // Check for updates in the background
+        try {
+            val release = UpdateService.getLatestRelease() ?: return@LaunchedEffect
+            val remoteVersionCode = UpdateService.parseVersion(release.tagName)
+            
+            if (UpdateService.updateAvailable(remoteVersionCode, localVersionCode)) {
+                android.util.Log.d("UpdateChecker", "Update available: ${release.name} (remote: $remoteVersionCode, local: $localVersionCode)")
+                latestRelease = release
+                showUpdateDialog = true
+            } else {
+                android.util.Log.d("UpdateChecker", "No update available (remote: $remoteVersionCode, local: $localVersionCode)")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("UpdateChecker", "Error checking for updates", e)
+            // Silently fail - don't interrupt user experience
+        }
+    }
+    
+    // Show update dialog if update is available
+    latestRelease?.let { release ->
+        if (showUpdateDialog) {
+            UpdateDialog(
+                release = release,
+                onDismiss = { showUpdateDialog = false },
+                onUpdate = { showUpdateDialog = false }
+            )
+        }
+    }
+}
