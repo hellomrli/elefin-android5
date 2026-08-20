@@ -132,17 +132,7 @@ fun MoviesLibraryScreen(
         apiService?.let { JellyfinRepository(it, settings) }
     }
 
-    val isTv = remember(context) { com.flex.elefin.ui.DeviceUtils.isTvDevice(context) }
-    if (!isTv && repository != null) {
-        JellyfinMobileLibraryScreen(
-            libraryId = libraryId,
-            libraryName = libraryName,
-            repository = repository,
-            onItemClick = onItemClick,
-            onBackClick = onBackPressed
-        )
-        return
-    }
+    // NOTE (android5 fork): mobile phone UI removed — this fork targets Android TV only.
     
     // Settings states (same as home screen)
     var darkModeEnabled by remember { mutableStateOf(settings.darkModeEnabled) }

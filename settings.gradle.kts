@@ -25,7 +25,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "elefin"
 include(":app")
-include(":decoder_av1")
 include(":newpipe-extractor")
 include(":timeago-parser")
  
