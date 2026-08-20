@@ -15,3 +15,8 @@
 local.properties
 /app/release
 *.apk
+/app/build
+/decoder_av1/build
+/newpipe-extractor/build
+/timeago-parser/build
+/.kotlin
