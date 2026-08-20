@@ -81,6 +81,7 @@ class JellyfinRepository(
             _nextUpItems.value = items
         } catch (e: Exception) {
             e.printStackTrace()
+            _error.value = "fetchNextUp: ${e.message ?: e.javaClass.simpleName}"
             println("Error fetching next up items: ${e.message}")
         }
     }
@@ -145,7 +146,7 @@ class JellyfinRepository(
             _recentlyAddedMovies.value = sortedItems
         } catch (e: Exception) {
             e.printStackTrace()
-            // Don't set error for recently added movies, just log it
+            _error.value = "fetchRecentlyAddedMovies: ${e.message ?: e.javaClass.simpleName}"
             println("Error fetching recently added movies: ${e.message}")
         }
     }
@@ -207,7 +208,7 @@ class JellyfinRepository(
             _recentlyReleasedMovies.value = sortedItems
         } catch (e: Exception) {
             e.printStackTrace()
-            // Don't set error for recently released movies, just log it
+            _error.value = "fetchRecentlyReleasedMovies: ${e.message ?: e.javaClass.simpleName}"
             println("Error fetching recently released movies: ${e.message}")
         }
     }
@@ -268,6 +269,7 @@ class JellyfinRepository(
             _recentlyAddedShows.value = sortedItems
         } catch (e: Exception) {
             e.printStackTrace()
+            _error.value = "fetchRecentlyAddedShows: ${e.message ?: e.javaClass.simpleName}"
             println("Error fetching recently added shows: ${e.message}")
         }
     }
@@ -328,6 +330,7 @@ class JellyfinRepository(
             _recentlyAddedEpisodes.value = sortedItems
         } catch (e: Exception) {
             e.printStackTrace()
+            _error.value = "fetchRecentlyAddedEpisodes: ${e.message ?: e.javaClass.simpleName}"
             println("Error fetching recently added episodes: ${e.message}")
         }
     }
@@ -342,6 +345,7 @@ class JellyfinRepository(
             }
         } catch (e: Exception) {
             e.printStackTrace()
+            _error.value = "fetchLibraries: ${e.message ?: e.javaClass.simpleName}"
             println("Error fetching libraries: ${e.message}")
         }
     }
@@ -352,6 +356,7 @@ class JellyfinRepository(
             _collections.value = collections
         } catch (e: Exception) {
             e.printStackTrace()
+            _error.value = "fetchCollections: ${e.message ?: e.javaClass.simpleName}"
             println("Error fetching collections: ${e.message}")
         }
     }
