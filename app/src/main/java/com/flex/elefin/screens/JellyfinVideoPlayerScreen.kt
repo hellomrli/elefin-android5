@@ -286,11 +286,14 @@ fun JellyfinVideoPlayerScreen(
     // FFmpeg supports: DTS, DTS-HD, TrueHD, AC3, E-AC3, FLAC, ALAC, Vorbis, Opus
     val renderersFactory = remember {
         DefaultRenderersFactory(context).apply {
-            // PREFER extension renderers (FFmpeg) over platform decoders for better compatibility
-            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+            // ON: prefer platform MediaCodec hardware decoding (critical for 4K HDR on
+            // low-end 32-bit devices - software decoding of 4K HEVC will stutter/freeze).
+            // FFmpeg extension is used only as fallback (audio like DTS/TrueHD, or
+            // video codecs the platform decoder doesn't support).
+            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             setEnableDecoderFallback(true)
             Log.d("JellyfinPlayer", "🎬 ExoPlayer initialized with FFmpeg extension support")
-            Log.d("JellyfinPlayer", "   Extension renderer mode: PREFER, Decoder fallback: ENABLED")
+            Log.d("JellyfinPlayer", "   Extension renderer mode: ON (platform hw decoder preferred), Decoder fallback: ENABLED")
         }
     }
     
