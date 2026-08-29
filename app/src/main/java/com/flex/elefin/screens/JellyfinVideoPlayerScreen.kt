@@ -1,6 +1,9 @@
 package com.flex.elefin.screens
 
+import android.app.ActivityManager
+import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -320,12 +323,16 @@ fun JellyfinVideoPlayerScreen(
     // Configure audio attributes for media playback
     val audioAttributes = AudioAttributes.Builder()
         .setUsage(C.USAGE_MEDIA)
-        .setContentType(C.CONTENT_TYPE_MOVIE)
+        .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
         .build()
     
     val player = remember {
         // Configure LoadControl to prevent OOM on high-bitrate content (especially HLS H.265)
-        val loadControl = if (settings.minimalBuffer4K) {
+        // Low-RAM devices (1GB Android 5 boxes) default to the small profile: a 128MB media
+        // buffer on top of the image caches gets background activities killed by LMK.
+        val isLowRamDevice = context.hasTightMemory()
+        val useSmallBuffer = settings.minimalBuffer4K || isLowRamDevice
+        val loadControl = if (useSmallBuffer) {
             // "Minimal" but robust buffering
             DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
@@ -349,7 +356,7 @@ fun JellyfinVideoPlayerScreen(
                 .setTargetBufferBytes(128 * 1024 * 1024) // 128MB max buffer (reduced to prevent OOM)
                 .build()
         }
-            
+
             ExoPlayer.Builder(context, renderersFactory)
                 .setTrackSelector(trackSelector)
                 .setAudioAttributes(audioAttributes, true)
@@ -357,11 +364,11 @@ fun JellyfinVideoPlayerScreen(
                 .setSeekBackIncrementMs(15000)
                 .setSeekForwardIncrementMs(15000)
                 .build()
-                .also { 
-                if (settings.minimalBuffer4K) {
-                    Log.d("JellyfinPlayer", "Created player with minimal buffering (50MB limit) for 4K content")
+                .also {
+                if (useSmallBuffer) {
+                    Log.d("JellyfinPlayer", "Created player with minimal buffering (50MB limit)${if (isLowRamDevice) " for low-memory device" else ""}")
         } else {
-                    Log.d("JellyfinPlayer", "Created player with standard buffering (250MB limit)")
+                    Log.d("JellyfinPlayer", "Created player with standard buffering (128MB limit)")
                 }
                     Log.d("JellyfinPlayer", "Extension renderer mode: PREFER, Decoder fallback: enabled")
         }
@@ -2441,19 +2448,9 @@ fun JellyfinVideoPlayerScreen(
         titleOverlayVisible = false
     }
     
-    // Check if ExoPlayer controller is visible and hide title overlay accordingly
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(100) // Check every 100ms
-            playerViewRef.value?.let { view ->
-                val controller = view.findViewById<androidx.media3.ui.PlayerControlView>(androidx.media3.ui.R.id.exo_controller)
-                if (controller != null && controller.visibility == android.view.View.VISIBLE && controller.alpha > 0f) {
-                    // Controller is visible, hide title overlay
-                    titleOverlayVisible = false
-                }
-            }
-        }
-    }
+    // Check if ExoPlayer controller is visible and hide title overlay accordingly.
+    // The listener is attached to each PlayerView at creation (see AndroidView
+    // factories); polling here would burn 10 view-tree traversals per second.
     
     LaunchedEffect(itemDetails?.SeriesId, apiService) {
         if (itemDetails?.Type == "Episode" && itemDetails?.SeriesId != null) {
@@ -2708,6 +2705,14 @@ fun JellyfinVideoPlayerScreen(
                                             keepScreenOn = true
                                             // DISABLE built-in controller - Compose handles controls
                                             useController = false
+                                            // If the built-in controller is ever re-enabled, hide the title overlay
+                                            setControllerVisibilityListener(
+                                                PlayerView.ControllerVisibilityListener { visibility ->
+                                                    if (visibility == android.view.View.VISIBLE) {
+                                                        titleOverlayVisible = false
+                                                    }
+                                                }
+                                            )
                                             // Block focus from going to PlayerView children
                                             descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
                                             isFocusable = false
@@ -2859,12 +2864,12 @@ fun JellyfinVideoPlayerScreen(
                                                     playButton?.let { play ->
                                                         play.nextFocusDownId = android.view.View.NO_ID
                                                         play.nextFocusUpId = android.view.View.NO_ID
-                                                        play.isFocusedByDefault = true
+                                                        play.setFocusedByDefaultCompat()
                                                     }
                                                     pauseButton?.let { pause ->
                                                         pause.nextFocusDownId = android.view.View.NO_ID
                                                         pause.nextFocusUpId = android.view.View.NO_ID  
-                                                        pause.isFocusedByDefault = true
+                                                        pause.setFocusedByDefaultCompat()
                                                     }
                                                     
                                                     // Use postDelayed to ensure controller is fully rendered, then request focus
@@ -2891,6 +2896,14 @@ fun JellyfinVideoPlayerScreen(
                                         keepScreenOn = true
                                     // DISABLE built-in controller - Compose handles controls
                                     useController = false
+                                    // If the built-in controller is ever re-enabled, hide the title overlay
+                                    setControllerVisibilityListener(
+                                        PlayerView.ControllerVisibilityListener { visibility ->
+                                            if (visibility == android.view.View.VISIBLE) {
+                                                titleOverlayVisible = false
+                                            }
+                                        }
+                                    )
                                     // Block focus from going to PlayerView children
                                     descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
                                     isFocusable = false
@@ -3085,12 +3098,12 @@ fun JellyfinVideoPlayerScreen(
                                             playButton?.let { play ->
                                                 play.nextFocusDownId = android.view.View.NO_ID
                                                 play.nextFocusUpId = android.view.View.NO_ID
-                                                play.isFocusedByDefault = true
+                                                play.setFocusedByDefaultCompat()
                                             }
                                             pauseButton?.let { pause ->
                                                 pause.nextFocusDownId = android.view.View.NO_ID
                                                 pause.nextFocusUpId = android.view.View.NO_ID  
-                                                pause.isFocusedByDefault = true
+                                                pause.setFocusedByDefaultCompat()
                                             }
                                             
                                             // Use postDelayed to ensure controller is fully rendered, then request focus
@@ -4254,6 +4267,7 @@ data class AudioTrackInfo(
     val sampleRate: Int
 )
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun ExoPlayerSettingsMenu(
     item: JellyfinItem,
@@ -5271,6 +5285,7 @@ fun SubtitleOptionItem(
     }
 }
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun AudioSelectionDialog(
     player: ExoPlayer,
@@ -5809,3 +5824,35 @@ private fun AspectModeButton(
 }
 
 
+
+/**
+ * True on devices with tight memory: the system low-RAM flag, or total RAM
+ * under 2.5GB. Budget Android 5 boxes (e.g. 2GB W50J) do not report
+ * lowRamDevice yet drop to double-digit MB of free memory while a 128MB media
+ * buffer fills up, so total RAM decides the buffer profile as well.
+ */
+private fun Context.hasTightMemory(): Boolean = try {
+    val am = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+    if (am != null && am.isLowRamDevice()) {
+        true
+    } else if (am != null) {
+        val mi = ActivityManager.MemoryInfo()
+        am.getMemoryInfo(mi)
+        mi.totalMem < 2_500_000_000L  // 2.5GB decimal
+    } else {
+        false
+    }
+} catch (e: Exception) {
+    false
+}
+
+/**
+ * [View.setFocusedByDefault] exists only from API 26. On Android 5-7 the
+ * explicit requestFocus() call that follows still positions initial focus;
+ * the default-focus hint is just skipped.
+ */
+private fun android.view.View.setFocusedByDefaultCompat() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        isFocusedByDefault = true
+    }
+}

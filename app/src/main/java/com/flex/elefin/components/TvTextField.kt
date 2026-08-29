@@ -207,7 +207,7 @@ fun TvSearchTextField(
     val textColor = if (focused) InputColors.highlightText else InputColors.normalText
     val backgroundColor = if (focused) InputColors.highlightBackground else InputColors.normalBackground
     
-            BasicTextField(
+    BasicTextField(
         value = query,
         onValueChange = onQueryChange,
         modifier = modifier

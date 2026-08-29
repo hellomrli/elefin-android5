@@ -32,7 +32,7 @@ fun Modifier.focusStyle(themeConfig: ThemeConfig?): Modifier = composed {
         }
         .then(
             if (isFocused) {
-                border(
+                Modifier.border(
                     width = focusConfig.borderWidth,
                     color = focusConfig.borderColor,
                     shape = shapes?.let { RoundedCornerShape(it.cornerRadius) } ?: RoundedCornerShape(8.dp)
