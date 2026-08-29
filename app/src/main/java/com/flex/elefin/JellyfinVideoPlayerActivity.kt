@@ -12,8 +12,8 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
 import androidx.media3.common.util.UnstableApi
+import kotlinx.coroutines.launch
 import com.flex.elefin.jellyfin.JellyfinApiService
 import com.flex.elefin.jellyfin.JellyfinConfig
 import com.flex.elefin.jellyfin.JellyfinItem
@@ -23,7 +23,6 @@ import com.flex.elefin.player.mpv.MpvUrlBuilder
 import com.flex.elefin.screens.JellyfinVideoPlayerScreen
 import `is`.xyz.mpv.MPVLib
 
-@UnstableApi
 class JellyfinVideoPlayerActivity : ComponentActivity() {
     
     private fun isPackageInstalled(packageName: String): Boolean {
@@ -99,6 +98,7 @@ class JellyfinVideoPlayerActivity : ComponentActivity() {
         }
     }
 
+    @androidx.annotation.OptIn(UnstableApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         

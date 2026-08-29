@@ -76,11 +76,14 @@ object UpdateService {
         return try {
             tag.replace("v", "", ignoreCase = true)
                 .split(".")
-                .map { it.toInt() }
                 .let { parts ->
-                    val major = parts.getOrNull(0) ?: 0
-                    val minor = parts.getOrNull(1) ?: 0
-                    val patch = parts.getOrNull(2) ?: 0
+                    // Tags carry suffixes (e.g. "v1.2.0-zh-hw"); only the leading
+                    // digits of each segment count ("0-zh-hw" -> 0).
+                    fun String.leadingDigits(): Int =
+                        takeWhile { ch -> ch.isDigit() }.ifEmpty { "0" }.toInt()
+                    val major = parts.getOrNull(0)?.leadingDigits() ?: 0
+                    val minor = parts.getOrNull(1)?.leadingDigits() ?: 0
+                    val patch = parts.getOrNull(2)?.leadingDigits() ?: 0
                     major * 10000 + minor * 100 + patch
                 }
         } catch (e: Exception) {

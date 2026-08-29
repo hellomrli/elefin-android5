@@ -2,6 +2,8 @@ package com.flex.elefin.music.player
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -258,3 +260,17 @@ object PlayerConnection {
     }
 }
 
+
+/**
+ * Start the audio service on all supported API levels:
+ * [Context.startForegroundService] exists only from API 26; on Android 5-7 a
+ * plain startService is used and MediaSessionService promotes itself to the
+ * foreground once playback begins.
+ */
+fun Context.startPlaybackService(intent: Intent) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        startForegroundService(intent)
+    } else {
+        startService(intent)
+    }
+}

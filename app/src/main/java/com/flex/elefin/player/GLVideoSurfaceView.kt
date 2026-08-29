@@ -129,6 +129,37 @@ class GLVideoSurfaceView @JvmOverloads constructor(
     private var viewportHeight: Int = 1080
     private var hasPreviousFrame: Boolean = false
     private var frameCount: Long = 0
+
+    // Attribute/uniform locations for the main and copy shader programs,
+    // resolved once per program link in onSurfaceCreated. glGet*Location does a
+    // driver-side string lookup per call — doing it every frame stalls the
+    // render loop on weak GPUs.
+    private var positionHandle = 0
+    private var texCoordHandle = 0
+    private var textureHandle = 0
+    private var transformHandle = 0
+    private var enableHDRHandle = 0
+    private var enableSharpenHandle = 0
+    private var hdrStrengthHandle = 0
+    private var sharpenStrengthHandle = 0
+    private var texelSizeHandle = 0
+    private var enableBlendHandle = 0
+    private var blendStrengthHandle = 0
+    private var prevTextureHandle = 0
+    private var hasPrevFrameHandle = 0
+    private var enableDenoiseHandle = 0
+    private var denoiseStrengthHandle = 0
+    private var enableDebandHandle = 0
+    private var debandStrengthHandle = 0
+    private var enableFXAAHandle = 0
+    private var brightnessHandle = 0
+    private var contrastHandle = 0
+    private var saturationHandle = 0
+    private var colorTempHandle = 0
+    private var copyPositionHandle = 0
+    private var copyTexCoordHandle = 0
+    private var copyTextureHandle = 0
+    private var copyTransformHandle = 0
     
     // Effect settings
     var enableFakeHDR: Boolean = false
@@ -332,6 +363,7 @@ class GLVideoSurfaceView @JvmOverloads constructor(
         shaderProgram = createShaderProgram()
         copyShaderProgram = createCopyShaderProgram()
         textureCopyShaderProgram = createTextureCopyShaderProgram()
+        cacheShaderLocations()
         
         // Create FBOs for storing previous frames (for frame blending and motion interpolation)
         createPreviousFrameFBO()
@@ -436,64 +468,67 @@ class GLVideoSurfaceView @JvmOverloads constructor(
         // Bind FBO
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, prevFrameFBO)
         GLES20.glViewport(0, 0, viewportWidth, viewportHeight)
-        
+
         // Use copy shader to render current OES texture to FBO
         GLES20.glUseProgram(copyShaderProgram)
-        
-        val positionHandle = GLES20.glGetAttribLocation(copyShaderProgram, "aPosition")
-        val texCoordHandle = GLES20.glGetAttribLocation(copyShaderProgram, "aTexCoord")
-        val textureHandle = GLES20.glGetUniformLocation(copyShaderProgram, "uTexture")
-        val transformHandle = GLES20.glGetUniformLocation(copyShaderProgram, "uTransform")
-        
-        GLES20.glEnableVertexAttribArray(positionHandle)
-        GLES20.glEnableVertexAttribArray(texCoordHandle)
-        
-        GLES20.glVertexAttribPointer(positionHandle, 2, GLES20.GL_FLOAT, false, 0, vertexBuffer)
-        GLES20.glVertexAttribPointer(texCoordHandle, 2, GLES20.GL_FLOAT, false, 0, textureBuffer)
-        
+
+        GLES20.glEnableVertexAttribArray(copyPositionHandle)
+        GLES20.glEnableVertexAttribArray(copyTexCoordHandle)
+
+        GLES20.glVertexAttribPointer(copyPositionHandle, 2, GLES20.GL_FLOAT, false, 0, vertexBuffer)
+        GLES20.glVertexAttribPointer(copyTexCoordHandle, 2, GLES20.GL_FLOAT, false, 0, textureBuffer)
+
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTextureId)
-        GLES20.glUniform1i(textureHandle, 0)
-        GLES20.glUniformMatrix4fv(transformHandle, 1, false, transformMatrix, 0)
-        
+        GLES20.glUniform1i(copyTextureHandle, 0)
+        GLES20.glUniformMatrix4fv(copyTransformHandle, 1, false, transformMatrix, 0)
+
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
-        
-        GLES20.glDisableVertexAttribArray(positionHandle)
-        GLES20.glDisableVertexAttribArray(texCoordHandle)
-        
+
+        GLES20.glDisableVertexAttribArray(copyPositionHandle)
+        GLES20.glDisableVertexAttribArray(copyTexCoordHandle)
+
         // Unbind FBO
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
         GLES20.glViewport(0, 0, viewportWidth, viewportHeight)
     }
-    
+
+    private fun cacheShaderLocations() {
+        positionHandle = GLES20.glGetAttribLocation(shaderProgram, "aPosition")
+        texCoordHandle = GLES20.glGetAttribLocation(shaderProgram, "aTexCoord")
+        textureHandle = GLES20.glGetUniformLocation(shaderProgram, "uTexture")
+        transformHandle = GLES20.glGetUniformLocation(shaderProgram, "uTransform")
+        enableHDRHandle = GLES20.glGetUniformLocation(shaderProgram, "uEnableHDR")
+        enableSharpenHandle = GLES20.glGetUniformLocation(shaderProgram, "uEnableSharpen")
+        hdrStrengthHandle = GLES20.glGetUniformLocation(shaderProgram, "uHDRStrength")
+        sharpenStrengthHandle = GLES20.glGetUniformLocation(shaderProgram, "uSharpenStrength")
+        texelSizeHandle = GLES20.glGetUniformLocation(shaderProgram, "uTexelSize")
+        enableBlendHandle = GLES20.glGetUniformLocation(shaderProgram, "uEnableBlend")
+        blendStrengthHandle = GLES20.glGetUniformLocation(shaderProgram, "uBlendStrength")
+        prevTextureHandle = GLES20.glGetUniformLocation(shaderProgram, "uPrevTexture")
+        hasPrevFrameHandle = GLES20.glGetUniformLocation(shaderProgram, "uHasPrevFrame")
+
+        enableDenoiseHandle = GLES20.glGetUniformLocation(shaderProgram, "uEnableDenoise")
+        denoiseStrengthHandle = GLES20.glGetUniformLocation(shaderProgram, "uDenoiseStrength")
+        enableDebandHandle = GLES20.glGetUniformLocation(shaderProgram, "uEnableDeband")
+        debandStrengthHandle = GLES20.glGetUniformLocation(shaderProgram, "uDebandStrength")
+        enableFXAAHandle = GLES20.glGetUniformLocation(shaderProgram, "uEnableFXAA")
+        brightnessHandle = GLES20.glGetUniformLocation(shaderProgram, "uBrightness")
+        contrastHandle = GLES20.glGetUniformLocation(shaderProgram, "uContrast")
+        saturationHandle = GLES20.glGetUniformLocation(shaderProgram, "uSaturation")
+        colorTempHandle = GLES20.glGetUniformLocation(shaderProgram, "uColorTemperature")
+
+        copyPositionHandle = GLES20.glGetAttribLocation(copyShaderProgram, "aPosition")
+        copyTexCoordHandle = GLES20.glGetAttribLocation(copyShaderProgram, "aTexCoord")
+        copyTextureHandle = GLES20.glGetUniformLocation(copyShaderProgram, "uTexture")
+        copyTransformHandle = GLES20.glGetUniformLocation(copyShaderProgram, "uTransform")
+    }
+
     private fun drawVideoFrame() {
         GLES20.glUseProgram(shaderProgram)
-        
-        // Get shader attribute/uniform locations
-        val positionHandle = GLES20.glGetAttribLocation(shaderProgram, "aPosition")
-        val texCoordHandle = GLES20.glGetAttribLocation(shaderProgram, "aTexCoord")
-        val textureHandle = GLES20.glGetUniformLocation(shaderProgram, "uTexture")
-        val transformHandle = GLES20.glGetUniformLocation(shaderProgram, "uTransform")
-        val enableHDRHandle = GLES20.glGetUniformLocation(shaderProgram, "uEnableHDR")
-        val enableSharpenHandle = GLES20.glGetUniformLocation(shaderProgram, "uEnableSharpen")
-        val hdrStrengthHandle = GLES20.glGetUniformLocation(shaderProgram, "uHDRStrength")
-        val sharpenStrengthHandle = GLES20.glGetUniformLocation(shaderProgram, "uSharpenStrength")
-        val texelSizeHandle = GLES20.glGetUniformLocation(shaderProgram, "uTexelSize")
-        val enableBlendHandle = GLES20.glGetUniformLocation(shaderProgram, "uEnableBlend")
-        val blendStrengthHandle = GLES20.glGetUniformLocation(shaderProgram, "uBlendStrength")
-        val prevTextureHandle = GLES20.glGetUniformLocation(shaderProgram, "uPrevTexture")
-        val hasPrevFrameHandle = GLES20.glGetUniformLocation(shaderProgram, "uHasPrevFrame")
-        
-        // New effect uniforms
-        val enableDenoiseHandle = GLES20.glGetUniformLocation(shaderProgram, "uEnableDenoise")
-        val denoiseStrengthHandle = GLES20.glGetUniformLocation(shaderProgram, "uDenoiseStrength")
-        val enableDebandHandle = GLES20.glGetUniformLocation(shaderProgram, "uEnableDeband")
-        val debandStrengthHandle = GLES20.glGetUniformLocation(shaderProgram, "uDebandStrength")
-        val enableFXAAHandle = GLES20.glGetUniformLocation(shaderProgram, "uEnableFXAA")
-        val brightnessHandle = GLES20.glGetUniformLocation(shaderProgram, "uBrightness")
-        val contrastHandle = GLES20.glGetUniformLocation(shaderProgram, "uContrast")
-        val saturationHandle = GLES20.glGetUniformLocation(shaderProgram, "uSaturation")
-        val colorTempHandle = GLES20.glGetUniformLocation(shaderProgram, "uColorTemperature")
+
+        // Attribute/uniform locations were resolved once in onSurfaceCreated
+        // (cacheShaderLocations); the fields below are those cached values.
         
         // Enable vertex arrays
         GLES20.glEnableVertexAttribArray(positionHandle)

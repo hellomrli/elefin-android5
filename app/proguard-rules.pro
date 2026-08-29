@@ -1,21 +1,48 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# --- R8 rules for Elefin release builds ---
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep line numbers in crash logs.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# ---------------------------------------------------------------------------
+# MPV JNI bridge: native methods are registered by name from libplayer.so /
+# libmpv.so, and native code calls back into MPVLib event/log helpers.
+# ---------------------------------------------------------------------------
+-keep class is.xyz.mpv.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# ---------------------------------------------------------------------------
+# kotlinx.serialization: serializer lookup happens through generated
+# Companion/serializer methods on @Serializable classes across the app.
+# ---------------------------------------------------------------------------
+-keepattributes *Annotation*, InnerClasses, Signature
+-dontnote kotlinx.serialization.**
+-keep,includedescriptorclasses class com.flex.elefin.**$$serializer { *; }
+-keepclassmembers class com.flex.elefin.** {
+    *** Companion;
+}
+-keepclasseswithmembers class com.flex.elefin.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
+# ---------------------------------------------------------------------------
+# Gson (updater): reflective field-based deserialization of GitHub API models.
+# ---------------------------------------------------------------------------
+-keep class com.flex.elefin.updater.GitHubRelease { <fields>; }
+-keep class com.flex.elefin.updater.GitHubAsset { <fields>; }
+-dontwarn com.google.gson.**
+
+# ---------------------------------------------------------------------------
+# NewPipe extractor (trailer streaming): parses JS/JSON payloads, keep
+# members referenced from dynamically-built class names quiet.
+# ---------------------------------------------------------------------------
+-dontwarn org.schabi.newpipe.**
+
+# Rhino (extractor's JS engine) and slf4j reference JDK classes that do not
+# exist on Android; the paths using them are never reached at runtime.
+-dontwarn java.beans.BeanDescriptor
+-dontwarn java.beans.BeanInfo
+-dontwarn java.beans.IntrospectionException
+-dontwarn java.beans.Introspector
+-dontwarn java.beans.PropertyDescriptor
+-dontwarn javax.script.ScriptEngineFactory
+-dontwarn org.slf4j.impl.StaticLoggerBinder

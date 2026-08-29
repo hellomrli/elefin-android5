@@ -48,6 +48,7 @@ import com.flex.elefin.music.model.Track
 import com.flex.elefin.music.player.AudioPlayerService
 import com.flex.elefin.music.player.AudioQueueManager
 import com.flex.elefin.music.player.PlayerConnection
+import com.flex.elefin.music.player.startPlaybackService
 import kotlinx.coroutines.launch
 
 private const val TAG = "MusicHomeScreen"
@@ -763,7 +764,7 @@ private fun MiniPlayer(
 private fun startPlayback(context: Context, tracks: List<Track>, startIndex: Int) {
     // Start the audio service
     val intent = Intent(context, AudioPlayerService::class.java)
-    context.startForegroundService(intent)
+    context.startPlaybackService(intent)
 
     // Connect and play
     PlayerConnection.connect(context)
