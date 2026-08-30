@@ -52,6 +52,7 @@ import com.flex.elefin.jellyfin.JellyfinApiService
 import com.flex.elefin.jellyfin.JellyfinItem
 import com.flex.elefin.jellyfin.MediaStream
 import com.flex.elefin.jellyfin.SkipMarkers
+import com.flex.elefin.util.hasTightMemory
 import com.flex.elefin.player.SubtitleMapper
 import com.flex.elefin.player.GLVideoSurfaceView
 import android.widget.FrameLayout
@@ -2159,6 +2160,9 @@ fun JellyfinVideoPlayerScreen(
                                         Log.d("JellyfinPlayer", "🎬 STATE_ENDED: Autoplay already in progress")
                                     }
                                 }
+                                // STATE_IDLE: nothing to do - it is either the pre-prepare
+                                // state or the result of an explicit stop()/release().
+                                else -> {}
                             }
                         }
                     })
@@ -2388,26 +2392,24 @@ fun JellyfinVideoPlayerScreen(
                 return@onDispose
             }
             
-            // Report final position for normal exit (not autoplay)
-            kotlinx.coroutines.GlobalScope.launch {
+            // Report final position for normal exit (not autoplay).
+            // The position MUST be read synchronously here: onDispose runs on the main
+            // thread and releases the player a few lines below, so a withContext(Main)
+            // hop from inside the coroutine would be queued behind this block and only
+            // observe an already-released player (position 0) - losing both the resume
+            // position and the "watched" mark.
+            val finalPositionMs = try { player.currentPosition } catch (e: Exception) { 0L }
+            val finalDurationMs = try { player.duration } catch (e: Exception) { 0L }
+            kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
                 try {
-                    val currentPositionMs = withContext(Dispatchers.Main) {
-                        try { player.currentPosition } catch (e: Exception) { 0L }
-                    }
-                    val durationMs = withContext(Dispatchers.Main) {
-                        try { player.duration } catch (e: Exception) { 0L }
-                    }
-                    
-                    if (currentPositionMs > 0 && durationMs > 0) {
-                        val positionTicks = currentPositionMs * 10_000L
-                        val isComplete = currentPositionMs >= durationMs * 0.90
-                        
-                        withContext(Dispatchers.IO) {
-                            apiService.reportPlaybackStopped(item.Id, positionTicks)
-                            if (isComplete) {
-                                apiService.markAsWatched(item.Id)
-                                Log.d("JellyfinPlayer", "🧹 Marked as watched on dispose")
-                            }
+                    if (finalPositionMs > 0 && finalDurationMs > 0) {
+                        val positionTicks = finalPositionMs * 10_000L
+                        val isComplete = finalPositionMs >= finalDurationMs * 0.90
+
+                        apiService.reportPlaybackStopped(item.Id, positionTicks)
+                        if (isComplete) {
+                            apiService.markAsWatched(item.Id)
+                            Log.d("JellyfinPlayer", "🧹 Marked as watched on dispose")
                         }
                     }
                 } catch (e: Exception) {
@@ -3730,7 +3732,7 @@ fun JellyfinVideoPlayerScreen(
                 }
                 
                 // Cast members
-                val castMembers = itemDetails?.People?.filter { it.Type == "演员" || it.Type == "GuestStar" } ?: emptyList()
+                val castMembers = itemDetails?.People?.filter { it.Type == "Actor" || it.Type == "GuestStar" } ?: emptyList()
                 if (castMembers.isNotEmpty()) {
                     item {
                         Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
@@ -5620,9 +5622,9 @@ private fun formatTime(ms: Long): String {
     val seconds = totalSeconds % 60
     
     return if (hours > 0) {
-        String.format("%d:%02d:%02d", hours, minutes, seconds)
+        String.format(java.util.Locale.ROOT, "%d:%02d:%02d", hours, minutes, seconds)
     } else {
-        String.format("%d:%02d", minutes, seconds)
+        String.format(java.util.Locale.ROOT, "%d:%02d", minutes, seconds)
     }
 }
 
@@ -5830,21 +5832,9 @@ private fun AspectModeButton(
  * under 2.5GB. Budget Android 5 boxes (e.g. 2GB W50J) do not report
  * lowRamDevice yet drop to double-digit MB of free memory while a 128MB media
  * buffer fills up, so total RAM decides the buffer profile as well.
+ *
+ * Moved to com.flex.elefin.util so the image cache can size itself the same way.
  */
-private fun Context.hasTightMemory(): Boolean = try {
-    val am = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
-    if (am != null && am.isLowRamDevice()) {
-        true
-    } else if (am != null) {
-        val mi = ActivityManager.MemoryInfo()
-        am.getMemoryInfo(mi)
-        mi.totalMem < 2_500_000_000L  // 2.5GB decimal
-    } else {
-        false
-    }
-} catch (e: Exception) {
-    false
-}
 
 /**
  * [View.setFocusedByDefault] exists only from API 26. On Android 5-7 the

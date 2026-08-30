@@ -40,9 +40,9 @@ data class ChapterInfo(
         val minutes = (totalSeconds % 3600) / 60
         val seconds = totalSeconds % 60
         return if (hours > 0) {
-            String.format("%d:%02d:%02d", hours, minutes, seconds)
+            String.format(java.util.Locale.ROOT, "%d:%02d:%02d", hours, minutes, seconds)
         } else {
-            String.format("%d:%02d", minutes, seconds)
+            String.format(java.util.Locale.ROOT, "%d:%02d", minutes, seconds)
         }
     }
 }
@@ -286,16 +286,32 @@ class JellyfinApiService(
     private val seasonCache = mutableMapOf<String, Pair<Long, List<JellyfinItem>>>()
     private val CACHE_DURATION_MS = 5 * 60 * 1000L // 5 minutes cache
     
-    private val client = HttpClient(Android) {
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                isLenient = true
-            })
-        }
-        engine {
-            connectTimeout = 10_000
-            socketTimeout = 15_000
+    private val client = sharedClient
+
+    companion object {
+        /**
+         * One HttpClient for the whole app.
+         *
+         * JellyfinApiService is constructed per Activity/screen (home, movie details,
+         * series details, cast, both players, both library screens). Each instance used
+         * to build its own HttpClient - a separate thread pool and connection pool - and
+         * none of them were ever close()d, so walking home -> details -> play leaked
+         * threads and re-did the TCP/TLS handshake on every hop. Sharing one client keeps
+         * connections alive across screens, which is the bulk of the win on a slow box.
+         */
+        private val sharedClient: HttpClient by lazy {
+            HttpClient(Android) {
+                install(ContentNegotiation) {
+                    json(Json {
+                        ignoreUnknownKeys = true
+                        isLenient = true
+                    })
+                }
+                engine {
+                    connectTimeout = 10_000
+                    socketTimeout = 15_000
+                }
+            }
         }
     }
 
@@ -684,10 +700,14 @@ class JellyfinApiService(
 
     fun getImageUrl(itemId: String, imageType: String = "Primary", imageTag: String? = null, maxWidth: Int? = null, maxHeight: Int? = null, quality: Int? = null): String {
         val base = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
-        // Default to highest resolution for detail views, but allow smaller sizes for thumbnails
-        val defaultMaxWidth = maxWidth ?: 7680
-        val defaultMaxHeight = maxHeight ?: 4320
-        val defaultQuality = quality ?: 100
+        // Fallback size for callers that don't specify one. This used to be 7680x4320
+        // at quality 100, which made every unsized call (episode thumbs, cast headshots,
+        // backdrops) fetch an 8K image to render it at a couple hundred pixels - the
+        // server had to resize it and the box had to download and decode it. 1080p at
+        // quality 85 is already above what any TV layout in this app displays.
+        val defaultMaxWidth = maxWidth ?: 1920
+        val defaultMaxHeight = maxHeight ?: 1080
+        val defaultQuality = quality ?: 85
         val urlBuilder = URLBuilder().takeFrom("${base}Items/$itemId/Images/$imageType").apply {
             parameters.append("maxWidth", defaultMaxWidth.toString())
             parameters.append("maxHeight", defaultMaxHeight.toString())

@@ -5,6 +5,24 @@
 -renamesourcefileattribute SourceFile
 
 # ---------------------------------------------------------------------------
+# Strip verbose/debug/info logging from release builds.
+#
+# The app makes ~1050 Log calls, 650 of them Log.d. The cost is not the I/O but
+# the argument evaluation, which happens before the call: several sites build
+# throwaway lists and concatenate long strings on every API response, e.g.
+#   Log.d(TAG, "order: ${response.Items.mapIndexed { ... }}")
+# -assumenosideeffects lets R8 delete the call AND the dead argument expressions.
+#
+# Log.w / Log.e are deliberately kept so field crashes stay diagnosable.
+# ---------------------------------------------------------------------------
+-assumenosideeffects class android.util.Log {
+    public static int d(...);
+    public static int v(...);
+    public static int i(...);
+    public static boolean isLoggable(...);
+}
+
+# ---------------------------------------------------------------------------
 # MPV JNI bridge: native methods are registered by name from libplayer.so /
 # libmpv.so, and native code calls back into MPVLib event/log helpers.
 # ---------------------------------------------------------------------------

@@ -134,7 +134,7 @@ fun UpdateDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val triggerDownload = {
-                            val apkUrl = release.assets.firstOrNull()?.browserDownloadUrl
+                            val apkUrl = UpdateService.selectApkAsset(release.assets)?.browserDownloadUrl
                             if (apkUrl != null && !isDownloading) {
                                 isDownloading = true
                                 downloadProgress = 0

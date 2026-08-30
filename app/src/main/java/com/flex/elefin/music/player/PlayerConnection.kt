@@ -65,6 +65,9 @@ object PlayerConnection {
                 Player.STATE_READY -> {
                     _duration.value = _controller?.duration ?: 0L
                 }
+                // STATE_IDLE / STATE_BUFFERING need no action here; isPlaying and
+                // the position poller already drive the UI for those.
+                else -> {}
             }
         }
 

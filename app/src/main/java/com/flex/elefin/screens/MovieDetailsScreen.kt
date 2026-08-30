@@ -523,8 +523,8 @@ fun BottomContainer(
     showDebugOutlines: Boolean = false
 ) {
     val context = LocalContext.current
-    // Get cast members (People with Type == "演员")
-    val castMembers = item.People?.filter { it.Type == "演员" } ?: emptyList()
+    // Get cast members (People with Type == "Actor")
+    val castMembers = item.People?.filter { it.Type == "Actor" } ?: emptyList()
     val firstGenre = item.Genres?.firstOrNull()
     val firstCastMember = castMembers.firstOrNull()
     
@@ -748,9 +748,11 @@ fun CastMemberCard(
     onClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
+    // Headshot renders at 67.dp - 200px is already generous. Previously unsized,
+    // which fetched an 8K portrait per cast member.
     val imageUrl = person.Id?.let { personId ->
         person.PrimaryImageTag?.let { tag ->
-            apiService?.getImageUrl(personId, "Primary", tag)
+            apiService?.getImageUrl(personId, "Primary", tag, maxWidth = 200, maxHeight = 300, quality = 80)
         }
     } ?: ""
     

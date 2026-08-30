@@ -9,6 +9,7 @@ import coil.request.CachePolicy
 
 import org.schabi.newpipe.extractor.NewPipe
 import com.flex.elefin.networking.ElefinDownloader
+import com.flex.elefin.util.hasTightMemory
 
 class ElefinApplication : Application(), ImageLoaderFactory {
     override fun onCreate() {
@@ -17,10 +18,15 @@ class ElefinApplication : Application(), ImageLoaderFactory {
     }
 
     override fun newImageLoader(): ImageLoader {
+        // The manifest sets largeHeap, so maxSizePercent is a share of largeMemoryClass.
+        // On a 1 GB Android 5 box that is roughly 256 MB, so the old 0.4 handed ~100 MB
+        // to bitmaps alone - on top of the player's media buffer. Scale it to the device.
+        val memoryFraction = if (hasTightMemory()) 0.15 else 0.25
+
         return ImageLoader.Builder(this)
             .memoryCache {
                 MemoryCache.Builder(this)
-                    .maxSizePercent(0.4) // Use 40% of available memory (increased for better caching)
+                    .maxSizePercent(memoryFraction)
                     .build()
             }
             .diskCache {
@@ -40,4 +46,3 @@ class ElefinApplication : Application(), ImageLoaderFactory {
             .build()
     }
 }
-

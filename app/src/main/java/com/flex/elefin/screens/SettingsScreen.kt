@@ -63,7 +63,6 @@ import com.flex.elefin.jellyfin.AppSettings
 import coil.ImageLoader
 import coil.imageLoader
 import coil.disk.DiskCache
-import com.bumptech.glide.Glide
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -176,7 +175,7 @@ fun SettingsScreen(
     var debugOutlinesEnabled by remember { mutableStateOf(settings.showDebugOutlines) }
     var preloadLibraryImagesEnabled by remember { mutableStateOf(settings.preloadLibraryImages) }
     var cacheLibraryImagesEnabled by remember { mutableStateOf(settings.cacheLibraryImages) }
-    var useGlideEnabled by remember { mutableStateOf(settings.useGlide) }
+    // (Glide toggle removed: Glide is no longer bundled, Coil loads every image.)
     var reducePosterResolutionEnabled by remember { mutableStateOf(settings.reducePosterResolution) }
     var animatedPlayButtonEnabled by remember { mutableStateOf(settings.useAnimatedPlayButton) }
     var use24HourTimeEnabled by remember { mutableStateOf(settings.use24HourTime) }
@@ -1940,17 +1939,6 @@ fun SettingsScreen(
                                 }
                             )
                             
-                            // Use Glide
-                            SettingToggle(
-                                title = "使用 Glide 加载图片",
-                                description = "Use Glide instead of Coil for image loading",
-                                isEnabled = useGlideEnabled,
-                                onToggle = {
-                                    useGlideEnabled = !useGlideEnabled
-                                    settings.useGlide = useGlideEnabled
-                                }
-                            )
-                            
                             // Reduce Poster Resolution
                             SettingToggle(
                                 title = "降低海报分辨率",
@@ -2065,22 +2053,25 @@ fun SettingsScreen(
                                                 val imageLoader: coil.ImageLoader = context.imageLoader
                                                 imageLoader.diskCache?.clear()
                                                 imageLoader.memoryCache?.clear()
-                                                
+
                                                 val coilCacheDir = context.filesDir.resolve("image_cache")
                                                 if (coilCacheDir.exists()) {
                                                     coilCacheDir.deleteRecursively()
                                                 }
-                                                
-                                                val glideCacheDir = File(context.cacheDir, "glide_image_cache")
-                                                if (glideCacheDir.exists()) {
-                                                    glideCacheDir.deleteRecursively()
+
+                                                // Left over from the Glide era; Glide is no longer bundled
+                                                // but old installs may still have this directory on disk.
+                                                val legacyGlideCacheDir = File(context.cacheDir, "glide_image_cache")
+                                                if (legacyGlideCacheDir.exists()) {
+                                                    legacyGlideCacheDir.deleteRecursively()
                                                 }
-                                                
-                                                Glide.get(context).clearDiskCache()
+                                                val legacyGlideFilesDir = File(context.filesDir, "glide_image_cache")
+                                                if (legacyGlideFilesDir.exists()) {
+                                                    legacyGlideFilesDir.deleteRecursively()
+                                                }
                                             }
-                                            
+
                                             withContext(Dispatchers.Main) {
-                                                Glide.get(context).clearMemory()
                                                 Toast.makeText(context, "Cache cleared successfully", Toast.LENGTH_SHORT).show()
                                             }
                                         } catch (e: Exception) {
