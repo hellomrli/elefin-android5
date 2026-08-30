@@ -21,3 +21,9 @@ local.properties
 /timeago-parser/build
 /.kotlin
 /timeago-parser/bin
+
+# historical build scratch logs (were accidentally committed)
+/build.log
+/build_log_*.txt
+/build_output*.txt
+/clean_build_log.txt
