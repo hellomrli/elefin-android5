@@ -547,7 +547,7 @@ fun SeriesDetailsScreen(
             }
 
             // Bottom container - scrollable with Cast
-            val castMembers = displayItem.People?.filter { it.Type == "演员" } ?: emptyList()
+            val castMembers = displayItem.People?.filter { it.Type == "Actor" } ?: emptyList()
             val bottomListState = rememberLazyListState()
             
             LazyColumn(
@@ -1493,10 +1493,12 @@ fun EpisodeCard(
     }
     val imageUrl = remember(episode) {
         val hasThumb = episode.ImageTags?.containsKey("Thumb") == true
+        // Card is 185.dp wide; 400px covers it at 2x density. Fetching these unsized
+        // meant an 8K request per episode - 20+ of them when a season list opens.
         if (hasThumb) {
-            apiService?.getImageUrl(episode.Id, "Thumb", episode.ImageTags?.get("Thumb"))
+            apiService?.getImageUrl(episode.Id, "Thumb", episode.ImageTags?.get("Thumb"), maxWidth = 400, maxHeight = 225, quality = 85)
         } else {
-            apiService?.getImageUrl(episode.Id, "Primary", episode.ImageTags?.get("Primary"))
+            apiService?.getImageUrl(episode.Id, "Primary", episode.ImageTags?.get("Primary"), maxWidth = 400, maxHeight = 600, quality = 85)
         } ?: ""
     }
     

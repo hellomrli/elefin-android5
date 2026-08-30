@@ -289,7 +289,7 @@ fun MovieRequestScreen(
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Text(
-                                                text = String.format("%.1f", rating),
+                                                text = String.format(java.util.Locale.ROOT, "%.1f", rating),
                                                 color = Color.White,
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.Bold
@@ -594,7 +594,7 @@ fun MovieRequestScreen(
                                     if (rating > 0) {
                                         Spacer(modifier = Modifier.width(12.dp))
                                         androidx.compose.material3.Text(
-                                            text = "★ " + String.format("%.1f", rating),
+                                            text = "★ " + String.format(java.util.Locale.ROOT, "%.1f", rating),
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color(0xFFFFD700)

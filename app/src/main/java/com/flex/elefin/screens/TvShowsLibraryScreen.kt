@@ -514,7 +514,7 @@ fun TvShowsLibraryScreen(
         return if (hideShowsWithZeroEpisodes) {
             this.filter { item ->
                 // Only filter Series items, keep episodes and other types
-                if (item.Type != "剧集") {
+                if (item.Type != "Series") {
                     true
                 } else {
                     val episodeCount = item.RecursiveItemCount ?: item.ChildCount ?: 0
@@ -1109,7 +1109,7 @@ fun TvShowsLibraryScreen(
                                         
                                         // Community Rating
                                         details.CommunityRating?.let { rating ->
-                                            TvShowMetadataBox(text = "★ ${String.format("%.1f", rating)}")
+                                            TvShowMetadataBox(text = "★ ${String.format(java.util.Locale.ROOT, "%.1f", rating)}")
                                         }
                                         
                                         // Language
@@ -1914,7 +1914,7 @@ fun TvShowsLibraryScreen(
                                         // Rating
                                         discoverShow.voteAverage?.let { rating ->
                                             Text(
-                                                text = "★ ${String.format("%.1f", rating)}",
+                                                text = "★ ${String.format(java.util.Locale.ROOT, "%.1f", rating)}",
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = Color(0xFFFFD700)
                                             )
@@ -2052,12 +2052,12 @@ fun TvShowsLibraryScreen(
                                                         }
                                                         
                                                         // Try to find by TMDB ID
-                                                        var jellyfinItem = apiService?.findItemByTmdbId(show.id, "剧集")
+                                                        var jellyfinItem = apiService?.findItemByTmdbId(show.id, "Series")
                                                         
                                                         // Fall back to title search if TMDB ID not found
                                                         if (jellyfinItem == null) {
                                                             val year = show.firstAirDate?.take(4)
-                                                            jellyfinItem = apiService?.findItemByTitle(show.name ?: "", year, "剧集")
+                                                            jellyfinItem = apiService?.findItemByTitle(show.name ?: "", year, "Series")
                                                         }
                                                         
                                                         if (jellyfinItem != null) {
@@ -2556,7 +2556,7 @@ fun JellyseerrTvShowCard(
                             .padding(horizontal = 4.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = "★ ${String.format("%.1f", rating)}",
+                            text = "★ ${String.format(java.util.Locale.ROOT, "%.1f", rating)}",
                             style = MaterialTheme.typography.labelSmall,
                             color = Color(0xFFFFD700)
                         )

@@ -20,6 +20,8 @@ data class GitHubRelease(
  * Data class for GitHub Release Asset
  */
 data class GitHubAsset(
+    val name: String,
+
     @SerializedName("browser_download_url")
     val browserDownloadUrl: String
 )

@@ -135,9 +135,11 @@ class MPVView(context: Context, attrs: AttributeSet? = null) : SurfaceView(conte
         MPVLib.setOptionString("sub-ass", "yes")  // Enable ASS/SSA subtitle rendering
         MPVLib.setOptionString("sub-ass-force-margins", "no")  // Don't force margins
         
-        // CRITICAL: blend-subtitles must be set correctly for GPU output on Android
-        // "video" blends into the video frame which is required for hw decoding
-        MPVLib.setOptionString("blend-subtitles", "video")
+        // Subtitle/video blending. "video" blends subtitles into the frame *before*
+        // scaling, which forces an extra full-resolution GPU pass - expensive on the
+        // Mali GPUs in Android 5 boxes. mpv's default draws them after scaling and
+        // looks the same on a TV, so stay with the default.
+        MPVLib.setOptionString("blend-subtitles", "no")
         
         // Secondary subtitle (for dual subtitle display) - disabled
         MPVLib.setOptionString("secondary-sid", "no")
@@ -160,8 +162,10 @@ class MPVView(context: Context, attrs: AttributeSet? = null) : SurfaceView(conte
         MPVLib.setOptionString("osd-level", "3")  // Full OSD including subtitles
         MPVLib.setOptionString("osd-bar", "yes")
         
-        // Log level for debugging subtitle and VO issues
-        MPVLib.setOptionString("msg-level", "all=v,vo=v,sub=v,osd=v")
+        // Log level. Verbose ("all=v") formats every internal mpv message and pushes it
+        // across JNI to the Java log callback - a per-packet/per-frame cost that is
+        // clearly visible on weak Android TV SoCs. Keep errors only.
+        MPVLib.setOptionString("msg-level", "all=error")
 
         // Display FPS
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

@@ -12,7 +12,6 @@ class AppSettings(context: Context) {
         private const val KEY_DEBUG_OUTLINES = "debug_outlines"
         private const val KEY_PRELOAD_LIBRARY_IMAGES = "preload_library_images"
         private const val KEY_CACHE_LIBRARY_IMAGES = "cache_library_images"
-        private const val KEY_USE_GLIDE = "use_glide"
         private const val KEY_REDUCE_POSTER_RESOLUTION = "reduce_poster_resolution"
         private const val KEY_ANIMATED_PLAY_BUTTON = "animated_play_button"
         private const val KEY_USE_24_HOUR_TIME = "use_24_hour_time"
@@ -119,10 +118,6 @@ class AppSettings(context: Context) {
     var cacheLibraryImages: Boolean
         get() = prefs.getBoolean(KEY_CACHE_LIBRARY_IMAGES, true) // Enabled by default
         set(value) = prefs.edit().putBoolean(KEY_CACHE_LIBRARY_IMAGES, value).apply()
-    
-    var useGlide: Boolean
-        get() = prefs.getBoolean(KEY_USE_GLIDE, false) // Disabled by default (Coil is default)
-        set(value) = prefs.edit().putBoolean(KEY_USE_GLIDE, value).apply()
     
     var reducePosterResolution: Boolean
         get() = prefs.getBoolean(KEY_REDUCE_POSTER_RESOLUTION, true) // Enabled by default

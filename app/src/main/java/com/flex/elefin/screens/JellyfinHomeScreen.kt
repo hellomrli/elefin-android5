@@ -947,8 +947,15 @@ fun JellyfinHomeScreen(
                     }
                     
                     buildList<Pair<String?, String>> {
-                        // Add all libraries (exclude any library named "合集" to avoid conflicts)
-                        addAll(libraries.filter { !it.Name.equals("合集", ignoreCase = true) }.map { null to it.Id })
+                        // Add all libraries, excluding the server's own box-set/collections library:
+                        // a dedicated "合集" tab is appended below, so including it here would
+                        // produce a duplicate tab. Match on CollectionType ("boxsets") rather than
+                        // the library's display name, which is user-defined and locale-dependent.
+                        addAll(
+                            libraries
+                                .filter { !it.CollectionType.equals("boxsets", ignoreCase = true) }
+                                .map { null to it.Id }
+                        )
                         // Add a single "合集" tab if collections exist
                         // Use a unique identifier to avoid conflicts with library names
                         if (collections.isNotEmpty()) {
@@ -1190,7 +1197,7 @@ fun JellyfinHomeScreen(
                         sortedItems.filter { item ->
                             // Keep non-Series items, or Series items with episodes
                             // Use RecursiveItemCount (total episodes) if available, fall back to ChildCount (seasons)
-                            if (item.Type != "剧集") {
+                            if (item.Type != "Series") {
                                 true
                             } else {
                                 val episodeCount = item.RecursiveItemCount ?: item.ChildCount ?: 0
@@ -1393,7 +1400,7 @@ fun JellyfinHomeScreen(
                                                         onClick = {
                                                             // Library item click - pass fromLibrary flag
                                                             val intent = when (item.Type) {
-                                                                "剧集" -> {
+                                                                "Series" -> {
                                                                     com.flex.elefin.SeriesDetailsActivity.createIntent(
                                                                         context = context,
                                                                         item = item,
@@ -1553,7 +1560,7 @@ fun JellyfinHomeScreen(
                                                 onClick = {
                                                     // Collection item click - pass fromLibrary flag
                                                     val intent = when (item.Type) {
-                                                        "剧集" -> {
+                                                        "Series" -> {
                                                             com.flex.elefin.SeriesDetailsActivity.createIntent(
                                                                 context = context,
                                                                 item = item,
@@ -1916,7 +1923,7 @@ fun JellyfinHomeScreen(
                             val libraryShows = recentlyAddedShowsByLibrary[library.Id]?.let { shows ->
                                 if (hideShowsWithZeroEpisodes) {
                                     shows.filter { item ->
-                                        if (item.Type != "剧集") {
+                                        if (item.Type != "Series") {
                                             true
                                         } else {
                                             val episodeCount = item.RecursiveItemCount ?: item.ChildCount ?: 0
@@ -3129,12 +3136,12 @@ fun JellyfinEpisodeCard(
         
         if (item.SeriesId != null) {
             // First try to get series backdrop
-            val seriesBackdrop = apiService?.getImageUrl(item.SeriesId, "Backdrop") ?: ""
+            val seriesBackdrop = apiService?.getImageUrl(item.SeriesId, "Backdrop", null, maxWidth = maxWidth, maxHeight = maxHeight, quality = quality) ?: ""
             if (seriesBackdrop.isNotEmpty()) {
                 seriesBackdrop
             } else {
                 // Fall back to episode backdrop
-                val episodeBackdrop = apiService?.getImageUrl(item.Id, "Backdrop") ?: ""
+                val episodeBackdrop = apiService?.getImageUrl(item.Id, "Backdrop", null, maxWidth = maxWidth, maxHeight = maxHeight, quality = quality) ?: ""
                 if (episodeBackdrop.isNotEmpty()) {
                     episodeBackdrop
                 } else {
@@ -3144,7 +3151,7 @@ fun JellyfinEpisodeCard(
             }
             } else {
                 // No series ID, use episode images
-                val episodeBackdrop = apiService?.getImageUrl(item.Id, "Backdrop") ?: ""
+                val episodeBackdrop = apiService?.getImageUrl(item.Id, "Backdrop", null, maxWidth = maxWidth, maxHeight = maxHeight, quality = quality) ?: ""
                 if (episodeBackdrop.isNotEmpty()) {
                     episodeBackdrop
                 } else {

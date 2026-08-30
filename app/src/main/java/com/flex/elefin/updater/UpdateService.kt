@@ -3,6 +3,7 @@ package com.flex.elefin.updater
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.google.gson.Gson
@@ -100,6 +101,38 @@ object UpdateService {
      */
     fun updateAvailable(remoteVersionCode: Int, localVersionCode: Int): Boolean {
         return remoteVersionCode > localVersionCode
+    }
+
+    /**
+     * Picks the release asset that matches this device's CPU architecture.
+     *
+     * Releases ship one APK per ABI (elefin-release-arm64-v8a.apk,
+     * elefin-release-armeabi-v7a.apk). Taking assets.first() would hand a 32-bit
+     * box the arm64 build, which then fails to install.
+     *
+     * [Build.SUPPORTED_ABIS] is ordered most-preferred-first, so an arm64 device
+     * gets the arm64 APK and falls back to armeabi-v7a if only that one is published.
+     */
+    fun selectApkAsset(assets: List<GitHubAsset>): GitHubAsset? {
+        val apks = assets.filter { it.name.endsWith(".apk", ignoreCase = true) }
+        if (apks.isEmpty()) return null
+
+        for (abi in Build.SUPPORTED_ABIS) {
+            val match = apks.firstOrNull { it.name.contains(abi, ignoreCase = true) }
+            if (match != null) {
+                Log.d(TAG, "Selected update asset ${match.name} for ABI $abi")
+                return match
+            }
+        }
+
+        // No per-ABI match: prefer an APK with no ABI in its name (a universal build),
+        // otherwise just take the first and let the installer decide.
+        val universal = apks.firstOrNull { asset ->
+            Build.SUPPORTED_ABIS.none { asset.name.contains(it, ignoreCase = true) }
+        }
+        val fallback = universal ?: apks.first()
+        Log.w(TAG, "No ABI-specific asset matched; falling back to ${fallback.name}")
+        return fallback
     }
     
     /**
@@ -227,10 +260,12 @@ object UpdateService {
                     flags
                 )
                 
-                // Try Intent.ACTION_VIEW with the APK file
+                // Try Intent.ACTION_VIEW with the APK file.
+                // NOTE: setType() clears any previously set data URI, so data and type
+                // must be set together via setDataAndType() or the installer receives
+                // an intent with no file attached.
                 val installIntent = Intent(Intent.ACTION_VIEW).apply {
-                    data = apkUri
-                    type = "application/vnd.android.package-archive"
+                    setDataAndType(apkUri, "application/vnd.android.package-archive")
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     addFlags(flags)

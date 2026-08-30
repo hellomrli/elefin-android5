@@ -99,10 +99,13 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- Music Player Service -->
+        <!-- Music Player Service.
+             Exported so the platform's media-button/media-session routing can bind to it;
+             MEDIA_CONTENT_CONTROL gates that to system-privileged callers. -->
         <service
             android:name=".music.player.AudioPlayerService"
             android:foregroundServiceType="mediaPlayback"
+            android:permission="android.permission.MEDIA_CONTENT_CONTROL"
             android:exported="true">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />

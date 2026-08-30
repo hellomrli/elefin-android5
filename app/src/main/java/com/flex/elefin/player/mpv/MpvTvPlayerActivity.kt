@@ -165,16 +165,16 @@ class MpvTvPlayerActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         Log.d(TAG, "onPause called - Stopping playback")
-        // Force pause via property to ensure it sticks at the core level
-        // Offload to background to avoid blocking main thread during pause
-        val currentMpvView = mpvView
-        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                `is`.xyz.mpv.MPVLib.setPropertyBoolean("pause", true)
-                currentMpvView?.pause()
-            } catch (e: Exception) {
-                Log.e(TAG, "Error pausing MPV in onPause", e)
-            }
+        // Force pause via property to ensure it sticks at the core level.
+        // This MUST run synchronously: dispatching it to a background thread races
+        // with onDestroy() -> mpvView.destroy(), and a JNI call that lands after the
+        // native context is torn down segfaults (a native crash, not catchable here).
+        // setPropertyBoolean/pause are non-blocking, so there is nothing to offload.
+        try {
+            `is`.xyz.mpv.MPVLib.setPropertyBoolean("pause", true)
+            mpvView?.pause()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error pausing MPV in onPause", e)
         }
     }
 
