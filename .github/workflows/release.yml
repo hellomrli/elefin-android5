@@ -31,6 +31,13 @@ jobs:
       - name: Install SDK platform 36
         run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
 
+      # Without an NDK, AGP's stripDebugSymbols task silently skips and the
+      # prebuilt libc++_shared.so ships with debug info (9.2 MB vs ~1 MB
+      # stripped). Same version as the local toolchain that produced verified
+      # artifacts.
+      - name: Install NDK (strips jniLibs)
+        run: sdkmanager --install "ndk;27.0.12077973"
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
