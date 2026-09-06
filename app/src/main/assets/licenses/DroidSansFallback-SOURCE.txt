@@ -1,0 +1,4 @@
+DroidSansFallback.ttf (unmodified)
+Source: https://github.com/aosp-mirror/platform_frameworks_base/blob/android-4.4.4_r2/data/fonts/DroidSansFallback.ttf
+License: Apache-2.0; see DroidSansFallback-NOTICE.txt
+SHA-256: 05d71b179ef97b82cf1bb91cef290c600a510f77f39b4964359e3ef88378c79d

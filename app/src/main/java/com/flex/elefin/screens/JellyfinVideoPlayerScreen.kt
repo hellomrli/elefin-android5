@@ -161,12 +161,14 @@ fun JellyfinVideoPlayerScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val playbackReporter = remember(apiService, item.Id) { com.flex.elefin.player.PlaybackReporter(apiService, item.Id) }
     val settings = remember { com.flex.elefin.jellyfin.AppSettings(context) }
     
     val themeColor = remember(settings.themeColorHex) {
         try {
             Color(android.graphics.Color.parseColor(settings.themeColorHex))
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Color(0xFF9C27B0) // Fallback to purple
         }
     }
@@ -175,6 +177,7 @@ fun JellyfinVideoPlayerScreen(
         try {
             android.graphics.Color.parseColor(settings.themeColorHex)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.graphics.Color.parseColor("#9C27B0")
         }
     }
@@ -214,43 +217,6 @@ fun JellyfinVideoPlayerScreen(
     val fallbackToMpv = remember { settings.fallbackToMpv }
     var hasTriedMpvFallback by remember { mutableStateOf(false) }
     val isMpvInstalled = remember { com.flex.elefin.player.mpv.MpvElefinLauncher.isInstalled(context) }
-    
-    // Helper function to launch MPV as fallback
-    val jellyfinConfig = remember { com.flex.elefin.jellyfin.JellyfinConfig(context) }
-    val launchMpvFallback: () -> Unit = {
-        Log.d("JellyfinPlayer", "🎬 Launching MPV player as fallback...")
-        
-        if (jellyfinConfig.isConfigured()) {
-            // Try to get cached subtitle if one was selected
-            val subtitlePath = subtitleStreamIndex?.let { streamIndex ->
-                com.flex.elefin.player.SubtitleDownloader.getCachedSubtitle(item.Id, streamIndex)
-            }
-            if (subtitlePath != null) {
-                Log.d("JellyfinPlayer", "🎬 Found cached subtitle for MPV: $subtitlePath")
-            }
-            
-            val success = com.flex.elefin.player.mpv.MpvElefinLauncher.play(
-                context = context,
-                itemId = item.Id,
-                title = item.Name ?: "视频",
-                resumePositionMs = resumePositionMs,
-                config = jellyfinConfig,
-                subtitleFilePath = subtitlePath
-            )
-            
-            if (success) {
-                Log.d("JellyfinPlayer", "✅ MPV launched successfully - closing ExoPlayer")
-                // Go back since we're switching to MPV
-                onBack()
-            } else {
-                Log.e("JellyfinPlayer", "❌ Failed to launch MPV")
-                showAV1Error = true
-            }
-        } else {
-            Log.e("JellyfinPlayer", "❌ No Jellyfin config available for MPV fallback")
-            showAV1Error = true
-        }
-    }
     
     // Start with user's GL setting, but will be overridden if AV1 detected at runtime
     // Note: The actual enforcement happens in the player listener below
@@ -292,8 +258,7 @@ fun JellyfinVideoPlayerScreen(
         DefaultRenderersFactory(context).apply {
             // ON: prefer platform MediaCodec hardware decoding (critical for 4K HDR on
             // low-end 32-bit devices - software decoding of 4K HEVC will stutter/freeze).
-            // FFmpeg extension is used only as fallback (audio like DTS/TrueHD, or
-            // video codecs the platform decoder doesn't support).
+            // The FFmpeg extension is an audio fallback (e.g. DTS/TrueHD), not a video decoder.
             setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             setEnableDecoderFallback(true)
             Log.d("JellyfinPlayer", "🎬 ExoPlayer initialized with FFmpeg extension support")
@@ -306,7 +271,9 @@ fun JellyfinVideoPlayerScreen(
         DefaultTrackSelector(context).apply {
             setParameters(
                 buildUponParameters()
-                    .setForceHighestSupportedBitrate(true)
+                    .setForceHighestSupportedBitrate(false)
+                    .setMaxVideoSize(com.flex.elefin.player.DevicePlaybackPolicy.current.h264.width, com.flex.elefin.player.DevicePlaybackPolicy.current.h264.height)
+                    .setMaxVideoBitrate(com.flex.elefin.player.DevicePlaybackPolicy.current.maxBitrate)
                     // Audio preference - use system default language
                     .setPreferredAudioLanguage(java.util.Locale.getDefault().language)
                     // Subtitle preferences - disable ALL auto-selection but allow manual control
@@ -342,7 +309,7 @@ fun JellyfinVideoPlayerScreen(
                     1000,   // bufferForPlaybackMs - 1 second
                     2000    // bufferForPlaybackAfterRebufferMs - 2 seconds
                 )
-                .setTargetBufferBytes(50 * 1024 * 1024) // 50MB max buffer (reduced from 100MB to prevent OOM)
+                .setTargetBufferBytes(24 * 1024 * 1024) // Media sample budget; native/GPU memory is separate
                 .build()
         } else {
             // Robust buffering for high bitrate content
@@ -353,8 +320,8 @@ fun JellyfinVideoPlayerScreen(
                     5000,   // bufferForPlaybackMs - 5 seconds
                     10000   // bufferForPlaybackAfterRebufferMs - 10 seconds
                 )
-                .setPrioritizeTimeOverSizeThresholds(true)
-                .setTargetBufferBytes(128 * 1024 * 1024) // 128MB max buffer (reduced to prevent OOM)
+                .setPrioritizeTimeOverSizeThresholds(false)
+                .setTargetBufferBytes(64 * 1024 * 1024)
                 .build()
         }
 
@@ -470,12 +437,55 @@ fun JellyfinVideoPlayerScreen(
                         isLoadingEpisodes = false
                     }
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("JellyfinPlayer", "Error fetching seasons/episodes for player layout", e)
                 }
             }
         }
     }
 
+
+    var fallbackResumePositionMs by remember { mutableStateOf(resumePositionMs) }
+    // Helper function to launch MPV as fallback
+    val jellyfinConfig = remember { com.flex.elefin.jellyfin.JellyfinConfig(context) }
+    val launchMpvFallback: () -> Unit = {
+        Log.d("JellyfinPlayer", "🎬 Launching MPV player as fallback...")
+
+        if (jellyfinConfig.isConfigured()) {
+            // Try to get cached subtitle if one was selected
+            val subtitlePath = currentSubtitleIndex?.let { streamIndex ->
+                com.flex.elefin.player.SubtitleDownloader.getCachedSubtitle(item.Id, streamIndex)
+            }
+            if (subtitlePath != null) {
+                Log.d("JellyfinPlayer", "🎬 Found cached subtitle for MPV: $subtitlePath")
+            }
+
+            val success = com.flex.elefin.player.mpv.MpvElefinLauncher.play(
+                context = context,
+                itemId = item.Id,
+                title = item.Name ?: "视频",
+                resumePositionMs = fallbackResumePositionMs,
+                config = jellyfinConfig,
+                subtitleFilePath = subtitlePath,
+                subtitleStreamIndex = currentSubtitleIndex,
+                audioStreamIndex = currentAudioIndex
+            )
+
+            if (success) {
+                player.pause()
+                playbackReporter.finish(fallbackResumePositionMs, player.duration, currentAudioIndex, currentSubtitleIndex)
+                Log.d("JellyfinPlayer", "✅ MPV launched successfully - closing ExoPlayer")
+                // Go back since we're switching to MPV
+                onBack()
+            } else {
+                Log.e("JellyfinPlayer", "❌ Failed to launch MPV")
+                showAV1Error = true
+            }
+        } else {
+            Log.e("JellyfinPlayer", "❌ No Jellyfin config available for MPV fallback")
+            showAV1Error = true
+        }
+    }
 
     // ===================================================================================
     // CLEAN AUTOPLAY STATE - Single source of truth
@@ -498,10 +508,12 @@ fun JellyfinVideoPlayerScreen(
             progressReportingJob?.cancel()
             progressReportingJob = null
             
+            playbackReporter.finish(player.currentPosition, player.duration, currentAudioIndex, currentSubtitleIndex)
             try {
                 player.stop()
                 player.release()
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.w("JellyfinPlayer", "Error stopping player on episode click", e)
             }
             
@@ -548,25 +560,17 @@ fun JellyfinVideoPlayerScreen(
         Log.d("JellyfinPlayer", "🎬 Step 1: Progress reporting cancelled")
         
         // Step 2: Stop and release current player COMPLETELY (like Jellyfin TV does)
-        val currentPositionMs = try { player.currentPosition } catch (e: Exception) { 0L }
-        val positionTicks = currentPositionMs * 10_000L
+        val currentPositionMs = try { player.currentPosition } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+ 0L }
+        playbackReporter.finish(currentPositionMs, player.duration, currentAudioIndex, currentSubtitleIndex)
         try {
             player.stop()
             player.release()
             Log.d("JellyfinPlayer", "🎬 Step 2: Player stopped and released")
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.w("JellyfinPlayer", "🎬 Step 2: Error stopping player", e)
-        }
-        
-        // Step 3: Report playback stopped (fire and forget)
-        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
-            try {
-                apiService.reportPlaybackStopped(item.Id, positionTicks)
-                apiService.markAsWatched(item.Id)
-                Log.d("JellyfinPlayer", "🎬 Step 3: Reported playback stopped")
-            } catch (e: Exception) {
-                Log.w("JellyfinPlayer", "🎬 Step 3: Error reporting", e)
-            }
         }
         
         // Step 4: Create and start intent for next episode
@@ -651,6 +655,7 @@ fun JellyfinVideoPlayerScreen(
                     skipMarkers = markers
                     Log.d("JellyfinPlayer", "Skip markers loaded: intro=${markers.introStartMs}-${markers.introEndMs}ms, credits=${markers.creditsStartMs}ms")
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.d("JellyfinPlayer", "Skip markers not available: ${e.message}")
                 }
             }
@@ -757,7 +762,11 @@ fun JellyfinVideoPlayerScreen(
                     val isHEVCVideo = videoCodecName.contains("hevc") || videoCodecName.contains("h265") || videoCodecName.contains("h.265")
                     
                     // Determine if we should request server-side transcoding
-                    val shouldRequestTranscoding = serverTranscodingEnabled && (
+                    val exceedsDevice = !com.flex.elefin.player.DevicePlaybackPolicy.current.canDirectPlay(
+                        videoStream?.Codec, videoStream?.Width, videoStream?.Height,
+                        videoStream?.RealFrameRate ?: videoStream?.AverageFrameRate, videoStream?.Profile
+                    )
+                    val shouldRequestTranscoding = (autoTranscodeOnError && exceedsDevice) || serverTranscodingEnabled && (
                         (transcodeAV1Setting && isAV1Video) ||
                         (transcodeHEVCSetting && isHEVCVideo)
                     )
@@ -863,6 +872,7 @@ fun JellyfinVideoPlayerScreen(
                                     Log.e("JellyfinPlayer", "Could not find current season with IndexNumber=${details.ParentIndexNumber}")
                                 }
                             } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e
                                 Log.e("JellyfinPlayer", "Error finding next episode", e)
                                 e.printStackTrace()
                             }
@@ -884,6 +894,7 @@ fun JellyfinVideoPlayerScreen(
                     isLoading = false
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.e("JellyfinPlayer", "Error preparing video", e)
                 isLoading = false
             }
@@ -966,6 +977,7 @@ fun JellyfinVideoPlayerScreen(
                                         positionIndex = subtitleIndex  // Use actual JF index, not sequential!
                                     )
                                 } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                     Log.w("JellyfinPlayer", "Failed to create subtitle config for index ${stream.Index}: ${e.message}")
                                     null
                                 }
@@ -988,6 +1000,7 @@ fun JellyfinVideoPlayerScreen(
                                         label = "${com.flex.elefin.subtitles.SubtitleLanguages.getDisplayName(downloadedSub.language)} (Downloaded)"
                                     )
                                 } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                     Log.w("JellyfinPlayer", "Failed to add downloaded subtitle ${downloadedSub.fileName}: ${e.message}")
                                     null
                                 }
@@ -1026,6 +1039,7 @@ fun JellyfinVideoPlayerScreen(
                                     .build()
                             }
                         } catch (e: Exception) {
+                            if (e is kotlinx.coroutines.CancellationException) throw e
                             Log.e("JellyfinPlayer", "❌ Error creating MediaItem with subtitles: ${e.message}", e)
                             Log.e("JellyfinPlayer", "   Playing video without subtitles")
                             MediaItem.fromUri(Uri.parse(currentMediaUrl))
@@ -1097,6 +1111,13 @@ fun JellyfinVideoPlayerScreen(
                         }
                         
                         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                            val fallbackPosition = com.flex.elefin.player.fallbackPosition(player.currentPosition, fallbackResumePositionMs, hasSeekedToResume)
+                            fallbackResumePositionMs = fallbackPosition
+                            val fallbackParameters = trackSelector.parameters
+                            val fallbackAudioIndex = currentAudioIndex
+                            val fallbackSubtitleIndex = currentSubtitleIndex ?: -1
+                            val fallbackPlayWhenReady = player.playWhenReady
+
                             Log.e("JellyfinPlayer", "Player error: ${error.message}", error)
                             Log.e("JellyfinPlayer", "Error type: ${error.errorCode}, Cause: ${error.cause?.javaClass?.simpleName}")
                             
@@ -1135,7 +1156,8 @@ fun JellyfinVideoPlayerScreen(
                                         val transcodedUrl = apiService.getTranscodedVideoUrl(
                                             itemId = item.Id,
                                             mediaSourceId = itemDetails?.MediaSources?.firstOrNull()?.Id,
-                                            subtitleStreamIndex = null,
+                                            subtitleStreamIndex = fallbackSubtitleIndex,
+                                            audioStreamIndex = fallbackAudioIndex,
                                             targetVideoCodec = transcodeTargetCodec,
                                             maxBitrateMbps = transcodeMaxBitrate,
                                             audioCodec = "aac"
@@ -1147,19 +1169,22 @@ fun JellyfinVideoPlayerScreen(
                                         val hlsMediaSource = HlsMediaSource.Factory(dataSourceFactory)
                                             .createMediaSource(MediaItem.fromUri(Uri.parse(transcodedUrl)))
                                         
-                                        player.setMediaSource(hlsMediaSource)
+                                        trackSelector.parameters = fallbackParameters
+                                        hasSeekedToResume = true
+                                        player.setMediaSource(hlsMediaSource, fallbackPosition)
                                         player.prepare()
-                                        player.play()
+                                        player.playWhenReady = fallbackPlayWhenReady
                                         
                                         isUsingTranscodeFallback = true
                                         Log.d("JellyfinPlayer", "✅ Switched to server transcoding: $transcodeTargetCodec @ ${transcodeMaxBitrate}Mbps")
                                         
                                         // Report playback start for transcode fallback
                                         scope.launch(Dispatchers.IO) {
-                                            apiService.reportPlaybackStart(item.Id, 0)
+                                            playbackReporter.reportPlaybackProgress(item.Id, fallbackPosition * 10_000L, audioStreamIndex = fallbackAudioIndex, subtitleStreamIndex = fallbackSubtitleIndex)
                                         }
                                         
                                     } catch (e: Exception) {
+                                        if (e is kotlinx.coroutines.CancellationException) throw e
                                         Log.e("JellyfinPlayer", "❌ Failed to switch to transcoding: ${e.message}", e)
                                         
                                         // Try MPV fallback if transcoding failed
@@ -1316,6 +1341,7 @@ fun JellyfinVideoPlayerScreen(
                                                         )
                                                         .build()
                                                 } catch (e: Exception) {
+                                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                                     MediaItem.fromUri(Uri.parse(mediaUrl))
                                                 }
                                             } else {
@@ -1327,22 +1353,25 @@ fun JellyfinVideoPlayerScreen(
                                                 .createMediaSource(retryMediaItem)
                                             
                                             // Set new media source and prepare
-                                            player.setMediaSource(retryMediaSource)
+                                            trackSelector.parameters = fallbackParameters
+                                        hasSeekedToResume = true
+                                        player.setMediaSource(retryMediaSource, fallbackPosition)
                                             player.prepare()
-                                            player.playWhenReady = true
+                                            player.playWhenReady = fallbackPlayWhenReady
                                             
                                             // Mark that we've retried
                                             hasRetriedWithoutRange = true
-                                            hasSeekedToResume = false // Reset resume seek
+                                            hasSeekedToResume = true // The new source already has the captured start position
                                             playerInitialized = true // Mark as initialized after retry
                                             
                                             Log.d("JellyfinPlayer", "Retried playback without range requests")
                                             
                                             // Report playback start for retry
                                             scope.launch(Dispatchers.IO) {
-                                                apiService.reportPlaybackStart(item.Id, 0)
+                                                playbackReporter.reportPlaybackProgress(item.Id, fallbackPosition * 10_000L, audioStreamIndex = fallbackAudioIndex, subtitleStreamIndex = fallbackSubtitleIndex)
                                             }
                                         } catch (e: Exception) {
+                                            if (e is kotlinx.coroutines.CancellationException) throw e
                                             Log.e("JellyfinPlayer", "Error retrying playback without range requests", e)
                                         }
                                     }
@@ -1365,7 +1394,8 @@ fun JellyfinVideoPlayerScreen(
                                         
                                         // Generate MP4 transcoding URL (server will transcode to MP4)
                                         val base = if (apiService.serverBaseUrl.endsWith("/")) apiService.serverBaseUrl else "${apiService.serverBaseUrl}/"
-                                        val mp4Url = "${base}Videos/${item.Id}/stream.mp4?VideoCodec=h264&AudioCodec=aac&mediaSourceId=$mediaSourceId&api_key=${apiService.apiKey}"
+                                        val mp4Url = apiService.getTranscodedVideoUrl(item.Id, mediaSourceId,
+                                            subtitleStreamIndex = fallbackSubtitleIndex, audioStreamIndex = fallbackAudioIndex)
                                         
                                         // Create media source with transcoded MP4
                                         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
@@ -1399,6 +1429,7 @@ fun JellyfinVideoPlayerScreen(
                                                 }
                                                 builder.build()
                                             } catch (e: Exception) {
+                                                if (e is kotlinx.coroutines.CancellationException) throw e
                                                 Log.e("JellyfinPlayer", "Error adding subtitle to fallback media item", e)
                                                 MediaItem.fromUri(Uri.parse(mp4Url))
                                             }
@@ -1406,17 +1437,19 @@ fun JellyfinVideoPlayerScreen(
                                             MediaItem.fromUri(Uri.parse(mp4Url))
                                         }
                                         
-                                        val transcodedMediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
+                                        val transcodedMediaSource = HlsMediaSource.Factory(dataSourceFactory)
                                             .createMediaSource(transcodedMediaItem)
                                         
                                         // Set new media source and prepare
-                                        player.setMediaSource(transcodedMediaSource)
+                                        trackSelector.parameters = fallbackParameters
+                                        hasSeekedToResume = true
+                                        player.setMediaSource(transcodedMediaSource, fallbackPosition)
                                         player.prepare()
-                                        player.playWhenReady = true
+                                        player.playWhenReady = fallbackPlayWhenReady
                                         
                                         // Mark that we've retried
                                         hasRetriedWithHls = true
-                                        hasSeekedToResume = false // Reset resume seek
+                                        hasSeekedToResume = true // The new source already has the captured start position
                                         playerInitialized = true
                                         
                                         // Update mediaUrl for reference
@@ -1424,11 +1457,12 @@ fun JellyfinVideoPlayerScreen(
                                         
                                         // Report playback start for HLS retry
                                         scope.launch(Dispatchers.IO) {
-                                            apiService.reportPlaybackStart(item.Id, 0)
+                                            playbackReporter.reportPlaybackProgress(item.Id, fallbackPosition * 10_000L, audioStreamIndex = fallbackAudioIndex, subtitleStreamIndex = fallbackSubtitleIndex)
                                         }
                                         
                                         Log.d("JellyfinPlayer", "Retried playback with MP4 transcoding")
                                     } catch (e: Exception) {
+                                        if (e is kotlinx.coroutines.CancellationException) throw e
                                         Log.e("JellyfinPlayer", "Error falling back to MP4 transcoding", e)
                                     }
                                 }
@@ -1672,6 +1706,7 @@ fun JellyfinVideoPlayerScreen(
                                     player.trackSelectionParameters = updatedParameters
                                     Log.d("JellyfinPlayer", "✅ Cleared subtitle overrides (user selected None)")
                                 } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                     Log.w("JellyfinPlayer", "Error clearing subtitle overrides: ${e.message}", e)
                                 }
                             }
@@ -1742,6 +1777,7 @@ fun JellyfinVideoPlayerScreen(
                                         Log.w("JellyfinPlayer", "   This might happen if track registration hasn't completed yet")
                                     }
                                 } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                     Log.w("JellyfinPlayer", "Error applying subtitle preference: ${e.message}", e)
                                 }
                             } else if (subtitleStreamIndex == null && currentSubtitleIndex == null && textTrackGroups.isNotEmpty() && textTrackGroups.none { it.isSelected } && !hasAppliedInitialSubtitlePreference) {
@@ -1758,6 +1794,7 @@ fun JellyfinVideoPlayerScreen(
                                     player.trackSelectionParameters = updatedParameters
                                     Log.d("JellyfinPlayer", "✅ Cleared subtitle track selection (None selected)")
                                 } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                     Log.w("JellyfinPlayer", "Error clearing subtitle track selection: ${e.message}", e)
                                 }
                             }
@@ -1865,6 +1902,7 @@ fun JellyfinVideoPlayerScreen(
                                     Log.w("JellyfinPlayer", "Could not find matching ExoPlayer track group for Jellyfin subtitle index $subtitleStreamIndex")
                                 }
                                 } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                     Log.w("JellyfinPlayer", "Error selecting subtitle track: ${e.message}", e)
                                 }
                             }
@@ -1886,7 +1924,7 @@ fun JellyfinVideoPlayerScreen(
                             }
                             
                             // Log current audio preference
-                            val audioIndexToApply = storedAudioPreference ?: audioStreamIndex
+                            val audioIndexToApply = currentAudioIndex ?: storedAudioPreference ?: audioStreamIndex
                             Log.d("JellyfinPlayer", "Audio preference to apply: $audioIndexToApply (stored: $storedAudioPreference, provided: $audioStreamIndex, current: $currentAudioIndex)")
                             
                             // Get Jellyfin audio streams for mapping
@@ -2044,6 +2082,7 @@ fun JellyfinVideoPlayerScreen(
                                                     Log.d("JellyfinPlayer", "⚠️ Attempted to force selection of unsupported audio track: language=${selectedFormat.language}, codec=${selectedFormat.codecs ?: "null"}, Jellyfin index=$audioIndexToApply, ExoPlayer group=$groupIndexToSelect (may not work if codec truly unsupported)")
                                                 }
                                             } catch (e: Exception) {
+                                                if (e is kotlinx.coroutines.CancellationException) throw e
                                                 Log.w("JellyfinPlayer", "选择音轨失败：${e.message}", e)
                                                 // If it's unsupported and addOverride failed, log a warning
                                                 if (!groupToSelect.isSupported) {
@@ -2059,6 +2098,7 @@ fun JellyfinVideoPlayerScreen(
                                         }
                                     }
                                 } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                     Log.w("JellyfinPlayer", "选择音轨失败：${e.message}", e)
                                 }
                                 } else {
@@ -2132,30 +2172,8 @@ fun JellyfinVideoPlayerScreen(
                                         progressReportingJob?.cancel()
                                         progressReportingJob = null
                                         
-                                        scope.launch {
-                                            try {
-                                                val positionTicks = player.currentPosition * 10_000L
-                                                val durationMs = player.duration
-                                                val isComplete = durationMs > 0 && player.currentPosition >= durationMs * 0.90
-                                                
-                                                withContext(Dispatchers.IO) {
-                                                    apiService.reportPlaybackStopped(
-                                                        itemId = item.Id, 
-                                                        positionTicks = positionTicks,
-                                                        audioStreamIndex = currentAudioIndex,
-                                                        subtitleStreamIndex = currentSubtitleIndex
-                                                    )
-                                                    if (isComplete) {
-                                                        apiService.markAsWatched(item.Id)
-                                                    }
-                                                }
-                                            } catch (e: Exception) {
-                                                Log.w("JellyfinPlayer", "Error reporting playback stopped", e)
-                                            }
-                                            withContext(Dispatchers.Main) {
-                                                onBack()
-                                            }
-                                        }
+                                        playbackReporter.finish(player.currentPosition, player.duration, currentAudioIndex, currentSubtitleIndex)
+                                        onBack()
                                     } else {
                                         Log.d("JellyfinPlayer", "🎬 STATE_ENDED: Autoplay already in progress")
                                     }
@@ -2181,7 +2199,7 @@ fun JellyfinVideoPlayerScreen(
                         val actualStartPosition = if (freshPositionMs > 0) freshPositionMs else resumePositionMs
                         val startPositionTicks = actualStartPosition * 10_000L
                         Log.d("JellyfinPlayer", "🎬 Reporting playback START for item ${item.Id} at ${actualStartPosition}ms (fresh: ${freshPositionMs}ms)")
-                        val success = apiService.reportPlaybackStart(
+                        val success = playbackReporter.reportPlaybackStart(
                             itemId = item.Id, 
                             positionTicks = startPositionTicks,
                             audioStreamIndex = currentAudioIndex,
@@ -2197,6 +2215,7 @@ fun JellyfinVideoPlayerScreen(
                     // Request focus on PlayerView so it can receive key events
                     playerViewRef.value?.requestFocus()
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("JellyfinPlayer", "Error initializing player", e)
                 }
             }
@@ -2234,6 +2253,7 @@ fun JellyfinVideoPlayerScreen(
                         }
                     }
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     // Player might be released
                     break
                 }
@@ -2309,6 +2329,7 @@ fun JellyfinVideoPlayerScreen(
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e // Re-throw cancellation
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.w("JellyfinPlayer", "🎬 Error in monitoring loop", e)
             }
         }
@@ -2348,7 +2369,7 @@ fun JellyfinVideoPlayerScreen(
                             // Report on background thread
                             withContext(Dispatchers.IO) {
                                 Log.d("JellyfinPlayer", "📊 Reporting progress: ${currentPositionMs}ms (${currentPositionMs/1000}s) paused=$isPaused")
-                                val success = apiService.reportPlaybackProgress(
+                                val success = playbackReporter.reportPlaybackProgress(
                                     itemId = item.Id,
                                     positionTicks = positionTicks,
                                     isPaused = isPaused,
@@ -2365,6 +2386,7 @@ fun JellyfinVideoPlayerScreen(
                             Log.d("JellyfinPlayer", "⏭️ Skipping progress report - position is 0")
                         }
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         Log.w("JellyfinPlayer", "Error reporting playback progress", e)
                     }
                 }
@@ -2398,25 +2420,14 @@ fun JellyfinVideoPlayerScreen(
             // hop from inside the coroutine would be queued behind this block and only
             // observe an already-released player (position 0) - losing both the resume
             // position and the "watched" mark.
-            val finalPositionMs = try { player.currentPosition } catch (e: Exception) { 0L }
-            val finalDurationMs = try { player.duration } catch (e: Exception) { 0L }
-            kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
-                try {
-                    if (finalPositionMs > 0 && finalDurationMs > 0) {
-                        val positionTicks = finalPositionMs * 10_000L
-                        val isComplete = finalPositionMs >= finalDurationMs * 0.90
+            val finalPositionMs = try { player.currentPosition } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+ 0L }
+            val finalDurationMs = try { player.duration } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+ 0L }
+            playbackReporter.finish(finalPositionMs, finalDurationMs, currentAudioIndex, currentSubtitleIndex)
 
-                        apiService.reportPlaybackStopped(item.Id, positionTicks)
-                        if (isComplete) {
-                            apiService.markAsWatched(item.Id)
-                            Log.d("JellyfinPlayer", "🧹 Marked as watched on dispose")
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.w("JellyfinPlayer", "🧹 Error in dispose reporting", e)
-                }
-            }
-            
             // Clean up GL surface if using enhancements
             glSurfaceViewRef.value?.release()
             glSurfaceViewRef.value = null
@@ -2427,6 +2438,7 @@ fun JellyfinVideoPlayerScreen(
                 player.release()
                 Log.d("JellyfinPlayer", "🧹 Player released")
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.w("JellyfinPlayer", "🧹 Player may already be released", e)
             }
         }
@@ -2461,6 +2473,7 @@ fun JellyfinVideoPlayerScreen(
                     val series = apiService.getItemDetails(itemDetails!!.SeriesId!!)
                     seriesName = series?.Name
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.w("JellyfinPlayer", "Error fetching series name", e)
                 }
             }
@@ -2483,7 +2496,7 @@ fun JellyfinVideoPlayerScreen(
     
     // Update playback position periodically for the progress bar
     LaunchedEffect(playerInitialized, showControls) {
-        if (playerInitialized) {
+        if (playerInitialized && showControls) {
             while (true) {
                 currentPosition = player.currentPosition
                 duration = player.duration.coerceAtLeast(0L)
@@ -2691,6 +2704,7 @@ fun JellyfinVideoPlayerScreen(
                                                         player.setVideoSurface(surface)
                                                         Log.d("JellyfinPlayer", "🎬 GL surface attached to player via callback")
                                                     } catch (e: Exception) {
+                                                        if (e is kotlinx.coroutines.CancellationException) throw e
                                                         Log.w("JellyfinPlayer", "⚠️ Failed to attach GL surface: ${e.message}")
                                                     }
                                                 } else {
@@ -4048,6 +4062,7 @@ fun JellyfinVideoPlayerScreen(
                             
                             showSettingsMenu = false
                         } catch (e: Exception) {
+                            if (e is kotlinx.coroutines.CancellationException) throw e
                             Log.e("JellyfinPlayer", "Error selecting downloaded subtitle", e)
                         }
                     }
@@ -4137,6 +4152,7 @@ fun JellyfinVideoPlayerScreen(
                             
                             showSettingsMenu = false
                         } catch (e: Exception) {
+                            if (e is kotlinx.coroutines.CancellationException) throw e
                             Log.e("JellyfinPlayer", "Error selecting subtitle track", e)
                         }
                     }
@@ -4325,6 +4341,7 @@ fun ExoPlayerSettingsMenu(
                 // Normal cancellation when composable leaves composition - don't log as error
                 throw e // Re-throw to respect cancellation
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.e("ExoPlayerSettingsMenu", "获取影片详情失败", e)
                 isLoadingSubtitles = false
             }
@@ -4656,6 +4673,7 @@ fun ExoPlayerSettingsMenu(
                                                 exoPlayer.trackSelectionParameters = updatedParameters
                                                 Log.d("ExoPlayerSettingsMenu", "Selected audio track: $trackTitle")
                                             } catch (e: Exception) {
+                                                if (e is kotlinx.coroutines.CancellationException) throw e
                                                 Log.e("ExoPlayerSettingsMenu", "选择音轨失败", e)
                                             }
                                         }
@@ -4697,6 +4715,7 @@ fun ExoPlayerSettingsMenu(
                                                     exoPlayer.trackSelectionParameters = updatedParameters
                                                     Log.d("ExoPlayerSettingsMenu", "Selected audio track: $trackTitle")
                                                 } catch (e: Exception) {
+                                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                                     Log.e("ExoPlayerSettingsMenu", "选择音轨失败", e)
                                                 }
                                             }
@@ -5133,6 +5152,7 @@ fun SubtitleSelectionDialog(
                     ?.count { it.Type == "Subtitle" } ?: 0
                 Log.d("SubtitleDialog", "Loaded $subtitleCount subtitle streams after refresh")
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.e("SubtitleDialog", "获取影片详情失败", e)
                 isLoading = false
             }
@@ -5523,6 +5543,7 @@ fun SkipButton(
         try {
             focusRequester.requestFocus()
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             // Ignore focus errors
         }
     }

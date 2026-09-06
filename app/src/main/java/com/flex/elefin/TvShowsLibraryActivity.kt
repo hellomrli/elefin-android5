@@ -35,6 +35,14 @@ class TvShowsLibraryActivity : ComponentActivity() {
                         libraryId = libraryId,
                         libraryName = libraryName,
                         onItemClick = { item: JellyfinItem, resumePositionMs: Long ->
+                            if (item.Id.startsWith("jellyseerr_")) {
+                                val id = item.Id.removePrefix("jellyseerr_").toIntOrNull()
+                                val type = com.flex.elefin.jellyfin.MediaTypes.toDiscovery(item.Type)
+                                if (id != null && type != null) {
+                                    startActivity(JellyseerrDetailsActivity.createIntent(this@TvShowsLibraryActivity, id, type))
+                                }
+                                return@TvShowsLibraryScreen
+                            }
                             // Route to appropriate details screen based on item type
                             val intent = when (item.Type) {
                                 "Series" -> {

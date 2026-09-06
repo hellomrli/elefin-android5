@@ -18,6 +18,8 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.Headers
 import androidx.compose.runtime.Stable
 import com.flex.elefin.BuildConfig
@@ -203,7 +205,10 @@ data class MediaStream(
     val Title: String? = null, // Subtitle track title
     val Width: Int? = null, // Video/subtitle width
     val Height: Int? = null, // Video/subtitle height
-    val ChannelLayout: String? = null // Audio channel layout (e.g., "5.1", "7.1", "stereo")
+    val ChannelLayout: String? = null, // Audio channel layout
+    val Profile: String? = null,
+    val RealFrameRate: Double? = null,
+    val AverageFrameRate: Double? = null
 )
 
 @Stable
@@ -286,41 +291,18 @@ class JellyfinApiService(
     private val seasonCache = mutableMapOf<String, Pair<Long, List<JellyfinItem>>>()
     private val CACHE_DURATION_MS = 5 * 60 * 1000L // 5 minutes cache
     
-    private val client = sharedClient
+    private val client = com.flex.elefin.networking.SharedHttpClients.jellyfin
 
-    companion object {
-        /**
-         * One HttpClient for the whole app.
-         *
-         * JellyfinApiService is constructed per Activity/screen (home, movie details,
-         * series details, cast, both players, both library screens). Each instance used
-         * to build its own HttpClient - a separate thread pool and connection pool - and
-         * none of them were ever close()d, so walking home -> details -> play leaked
-         * threads and re-did the TCP/TLS handshake on every hop. Sharing one client keeps
-         * connections alive across screens, which is the bulk of the win on a slow box.
-         */
-        private val sharedClient: HttpClient by lazy {
-            HttpClient(Android) {
-                install(ContentNegotiation) {
-                    json(Json {
-                        ignoreUnknownKeys = true
-                        isLenient = true
-                    })
-                }
-                engine {
-                    connectTimeout = 10_000
-                    socketTimeout = 15_000
-                }
-            }
-        }
-    }
+
+    private fun recoverPositions(items: List<JellyfinItem>): List<JellyfinItem> =
+        items.map { com.flex.elefin.player.PlaybackReports.recover(this, it) }
 
     suspend fun getContinueWatching(limit: Int = 20): List<JellyfinItem> {
         return try {
             val base = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
             val url = URLBuilder().takeFrom("${base}Users/$userId/Items/Resume").apply {
                 // Explicitly include Type field to ensure proper routing in UI
-                parameters.append("Fields", "ImageTags,UserData,SeriesName,SeriesId,Type")
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry.
                 parameters.append("SortBy", "DatePlayed")
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
@@ -331,15 +313,16 @@ class JellyfinApiService(
             }.body()
             
             // Log raw order from server
-            android.util.Log.d("JellyfinAPI", "Continue Watching RAW order: ${response.Items.mapIndexed { i, it -> "$i: ${it.Name} (LastPlayed: ${it.UserData?.LastPlayedDate})" }}")
+            android.util.Log.d("JellyfinAPI", "Continue Watching RAW order: ${recoverPositions(response.Items).mapIndexed { i, it -> "$i: ${it.Name} (LastPlayed: ${it.UserData?.LastPlayedDate})" }}")
             
             // Sort client-side by LastPlayedDate (most recently played first)
-            val sorted = response.Items.sortedByDescending { item ->
+            val sorted = recoverPositions(response.Items).sortedByDescending { item ->
                 item.getLastPlayedDateForSort()
             }
             android.util.Log.d("JellyfinAPI", "Continue Watching SORTED order: ${sorted.mapIndexed { i, it -> "$i: ${it.Name} (LastPlayed: ${it.UserData?.LastPlayedDate})" }}")
             sorted
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             emptyList()
         }
@@ -352,15 +335,16 @@ class JellyfinApiService(
                 parameters.append("UserId", userId)
                 parameters.append("Limit", limit.toString())
                 // Explicitly include Type field to ensure proper routing in UI
-                parameters.append("Fields", "ImageTags,UserData,SeriesName,SeriesId,Type") // Request ImageTags to get Thumb images
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry. // Request ImageTags to get Thumb images
                 parameters.append("EnableResumable", "false") // Next Up shows episodes you haven't started yet
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
                                 header("X-Emby-Authorization", "MediaBrowser Client=\"Elefin\", Device=\"Android TV\", DeviceId=\"\", Version=\"${BuildConfig.VERSION_NAME}\", Token=\"$accessToken\"")
             }.body()
-            response.Items
+            recoverPositions(response.Items)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             emptyList()
         }
@@ -380,7 +364,7 @@ class JellyfinApiService(
                 parameters.append("SeriesId", seriesId)
                 parameters.append("Limit", "1")
                 // Explicitly include Type field to ensure proper routing in UI
-                parameters.append("Fields", "ImageTags,UserData,SeriesName,SeriesId,IndexNumber,ParentIndexNumber,Type")
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry.
                 parameters.append("EnableResumable", "true") // Include in-progress episodes
             }.buildString()
             
@@ -390,7 +374,7 @@ class JellyfinApiService(
                                 header("X-Emby-Authorization", "MediaBrowser Client=\"Elefin\", Device=\"Android TV\", DeviceId=\"\", Version=\"${BuildConfig.VERSION_NAME}\", Token=\"$accessToken\"")
             }.body()
             
-            val nextUpEpisode = response.Items.firstOrNull()
+            val nextUpEpisode = recoverPositions(response.Items).firstOrNull()
             if (nextUpEpisode != null) {
                 android.util.Log.d("JellyfinAPI", "✅ Found NextUp for series $seriesId: ${nextUpEpisode.Name} (S${nextUpEpisode.ParentIndexNumber}E${nextUpEpisode.IndexNumber})")
             } else {
@@ -398,6 +382,7 @@ class JellyfinApiService(
             }
             nextUpEpisode
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching NextUp for series $seriesId", e)
             e.printStackTrace()
             null
@@ -444,6 +429,7 @@ class JellyfinApiService(
             }
             firstEpisode
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error getting first episode for series $seriesId", e)
             e.printStackTrace()
             null
@@ -509,6 +495,7 @@ class JellyfinApiService(
             android.util.Log.d("JellyfinAPI", "All episodes watched for series $seriesId")
             null
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error finding first unwatched episode for series $seriesId", e)
             e.printStackTrace()
             null
@@ -524,7 +511,7 @@ class JellyfinApiService(
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
                 parameters.append("Recursive", "true")
-                parameters.append("Fields", "ImageTags") // Request ImageTags for image loading
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry. // Request ImageTags for image loading
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -532,6 +519,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             emptyList()
         }
@@ -546,7 +534,7 @@ class JellyfinApiService(
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
                 parameters.append("Recursive", "true")
-                parameters.append("Fields", "ImageTags") // Request ImageTags for image loading
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry. // Request ImageTags for image loading
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -554,6 +542,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             emptyList()
         }
@@ -569,7 +558,7 @@ class JellyfinApiService(
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
                 parameters.append("Recursive", "true")
-                parameters.append("Fields", "ImageTags,DateCreated") // Request ImageTags and DateCreated for image loading and sorting
+                parameters.append("Fields", "DateCreated") // Request ImageTags and DateCreated for image loading and sorting
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -577,6 +566,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             emptyList()
         }
@@ -592,7 +582,7 @@ class JellyfinApiService(
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
                 parameters.append("Recursive", "true")
-                parameters.append("Fields", "ImageTags,PremiereDate") // Request ImageTags and PremiereDate for image loading and sorting
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry. // Request ImageTags and PremiereDate for image loading and sorting
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -600,6 +590,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             emptyList()
         }
@@ -614,7 +605,7 @@ class JellyfinApiService(
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
                 parameters.append("Recursive", "true")
-                parameters.append("Fields", "ImageTags,ChildCount,RecursiveItemCount") // Request ImageTags, ChildCount and RecursiveItemCount
+                parameters.append("Fields", "ChildCount,RecursiveItemCount") // Request ImageTags, ChildCount and RecursiveItemCount
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -623,6 +614,7 @@ class JellyfinApiService(
             // Return all items - filtering based on settings will be done in UI layer
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             emptyList()
         }
@@ -638,7 +630,7 @@ class JellyfinApiService(
                 parameters.append("Limit", limit.toString())
                 parameters.append("Recursive", "true")
                 // Request SeriesId, SeriesName, IndexNumber, ParentIndexNumber, ImageTags, and Type fields for episodes
-                parameters.append("Fields", "SeriesId,SeriesName,IndexNumber,ParentIndexNumber,ImageTags,Type")
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry.
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -646,6 +638,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             emptyList()
         }
@@ -661,7 +654,7 @@ class JellyfinApiService(
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
                 parameters.append("Recursive", "true")
-                parameters.append("Fields", "ImageTags,ChildCount,RecursiveItemCount")
+                parameters.append("Fields", "ChildCount,RecursiveItemCount")
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -669,6 +662,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             emptyList()
         }
@@ -685,7 +679,7 @@ class JellyfinApiService(
                 parameters.append("Limit", limit.toString())
                 parameters.append("Recursive", "true")
                 // Explicitly include Type field to ensure proper routing in UI
-                parameters.append("Fields", "SeriesId,SeriesName,IndexNumber,ParentIndexNumber,ImageTags,Type")
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry.
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -693,6 +687,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             emptyList()
         }
@@ -749,7 +744,7 @@ class JellyfinApiService(
                 parameters.append("UserId", userId)
                 // Request UserData fields to get PositionTicks for resume functionality, and IndexNumber/ParentIndexNumber for episodes
                 // Also request Chapters for chapter markers
-                parameters.append("Fields", "MediaSources,Genres,Overview,People,ProviderIds,UserData,ImageTags,IndexNumber,ParentIndexNumber,NextEpisodeId,Chapters")
+                parameters.append("Fields", "MediaSources,Genres,Overview,People,ProviderIds,Chapters")
             }.buildString()
             android.util.Log.d("JellyfinAPI", "Fetching item details from: $url")
             
@@ -771,10 +766,11 @@ class JellyfinApiService(
                 val seconds = (item.UserData?.PositionTicks ?: 0L) / 10_000_000L
                 android.util.Log.d("JellyfinAPI", "Item ${item.Id} is resumable at position ${item.UserData?.PositionTicks} ticks (${seconds} seconds)")
             }
-            item
+            com.flex.elefin.player.PlaybackReports.recover(this, item)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching item details", e)
             e.printStackTrace()
             null
@@ -798,6 +794,7 @@ class JellyfinApiService(
             android.util.Log.d("JellyfinAPI", "Person birth: ${person.birthDateValue}, death: ${person.deathDateValue}, locations: ${person.ProductionLocations}")
             person
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching person details", e)
             e.printStackTrace()
             null
@@ -815,7 +812,7 @@ class JellyfinApiService(
                 parameters.append("IncludeItemTypes", "Movie,Series")
                 parameters.append("SortBy", "PremiereDate,ProductionYear,SortName")
                 parameters.append("SortOrder", "Descending")
-                parameters.append("Fields", "PrimaryImageAspectRatio,MediaSourceCount,Overview,Genres,ProductionYear")
+                parameters.append("Fields", "PrimaryImageAspectRatio,MediaSourceCount,Overview,Genres")
                 parameters.append("Limit", limit.toString())
             }.buildString()
             android.util.Log.d("JellyfinAPI", "Fetching person filmography from: $url")
@@ -827,6 +824,7 @@ class JellyfinApiService(
             android.util.Log.d("JellyfinAPI", "Person filmography fetched: ${itemsResponse.Items.size} items")
             itemsResponse.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching person filmography", e)
             e.printStackTrace()
             emptyList()
@@ -860,52 +858,32 @@ class JellyfinApiService(
         mediaSourceId: String? = null,
         subtitleStreamIndex: Int? = null,
         targetVideoCodec: String = "h264",
-        maxBitrateMbps: Int = 40,
-        audioCodec: String = "aac"
+        maxBitrateMbps: Int = 10,
+        audioCodec: String = "aac",
+        audioStreamIndex: Int? = null
     ): String {
-        val base = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
-        val sourceId = mediaSourceId ?: itemId
-        val maxBitrate = maxBitrateMbps * 1_000_000 // Convert Mbps to bps
-        
-        // Use HLS for transcoded playback (allows progressive streaming while transcoding)
-        val hlsUrl = URLBuilder().takeFrom("${base}Videos/$itemId/master.m3u8").apply {
-            // Video transcoding parameters
-            parameters.append("VideoCodec", targetVideoCodec.lowercase())
-            parameters.append("VideoBitrate", maxBitrate.toString())
-            
-            // IMPORTANT: Set max resolution to preserve original quality
-            // 4K support (3840x2160)
-            parameters.append("MaxWidth", "3840")
-            parameters.append("MaxHeight", "2160")
-            
-            // Set streaming bitrate high to prevent quality reduction
-            parameters.append("MaxStreamingBitrate", maxBitrate.toString())
-            
-            // Audio parameters - high quality
+        val policy = com.flex.elefin.player.DevicePlaybackPolicy.current
+        val video = policy.fallback(targetVideoCodec)
+        val bitrate = policy.bitrate(maxBitrateMbps)
+        return URLBuilder().takeFrom("${baseUrl.trimEnd('/')}/Videos/$itemId/master.m3u8").apply {
+            parameters.append("VideoCodec", video.codec)
+            parameters.append("VideoBitrate", bitrate.toString())
+            parameters.append("MaxStreamingBitrate", bitrate.toString())
+            parameters.append("MaxWidth", video.width.toString())
+            parameters.append("MaxHeight", video.height.toString())
+            parameters.append("MaxFramerate", video.frameRate.toString())
+            if (video.codec == "h264") parameters.append("VideoProfile", video.profiles.lastOrNull() ?: "baseline")
             parameters.append("AudioCodec", audioCodec.lowercase())
-            parameters.append("AudioBitrate", "640000") // 640 kbps for high quality audio
-            parameters.append("AudioChannels", "6") // Up to 5.1 surround
-            
-            // Subtitle handling
-            subtitleStreamIndex?.let {
-                parameters.append("SubtitleStreamIndex", it.toString())
-            }
-            
-            // Quality preservation parameters
-            parameters.append("CopyTimestamps", "true")
-            parameters.append("EnableAutoStreamCopy", "false") // Force transcoding
-            parameters.append("RequireNonAnamorphic", "false")
-            parameters.append("TranscodingMaxAudioChannels", "6")
-            
-            // Device profile hints for quality
-            parameters.append("mediaSourceId", sourceId)
+            parameters.append("AudioBitrate", "192000")
+            parameters.append("AudioChannels", policy.audioChannels.toString())
+            parameters.append("TranscodingMaxAudioChannels", policy.audioChannels.toString())
+            audioStreamIndex?.let { parameters.append("AudioStreamIndex", it.toString()) }
+            parameters.append("SubtitleStreamIndex", (subtitleStreamIndex ?: -1).toString())
+            if (subtitleStreamIndex != null && subtitleStreamIndex >= 0) parameters.append("SubtitleMethod", "Encode")
+            parameters.append("EnableAutoStreamCopy", "false")
+            parameters.append("mediaSourceId", mediaSourceId ?: itemId)
             parameters.append("api_key", accessToken)
         }.buildString()
-        
-        android.util.Log.d("JellyfinAPI", "🔄 Server transcoding URL: $hlsUrl")
-        android.util.Log.d("JellyfinAPI", "   Video: $targetVideoCodec @ ${maxBitrateMbps}Mbps, Audio: $audioCodec @ 640kbps")
-        android.util.Log.d("JellyfinAPI", "   Max Resolution: 3840x2160 (4K)")
-        return hlsUrl
     }
     
     fun getVideoPlaybackUrl(
@@ -1118,8 +1096,10 @@ class JellyfinApiService(
             // Allow POST as well, but GET is sufficient and easier for this
             val response: JellyfinPlaybackInfo = client.post(url) {
                                 header("X-Emby-Authorization", "MediaBrowser Client=\"Elefin\", Device=\"Android TV\", DeviceId=\"\", Version=\"${BuildConfig.VERSION_NAME}\", Token=\"$accessToken\"")
-                // Empty body for POST
-                setBody("{}")
+                setBody(buildJsonObject {
+                    put("DeviceProfile", com.flex.elefin.player.DevicePlaybackPolicy.current.deviceProfile())
+                    put("MaxStreamingBitrate", com.flex.elefin.player.DevicePlaybackPolicy.current.maxBitrate)
+                }.toString())
                 contentType(ContentType.Application.Json)
             }.body()
             
@@ -1135,6 +1115,7 @@ class JellyfinApiService(
             
             response
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "❌ Failed to get PlaybackInfo: ${e.message}", e)
             null
         }
@@ -1190,6 +1171,7 @@ class JellyfinApiService(
             android.util.Log.d("JellyfinAPI", "Skip markers: intro=${markers.introStartMs}-${markers.introEndMs}ms, credits=${markers.creditsStartMs}ms")
             markers
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.d("JellyfinAPI", "MediaSegments not available (server may not support it): ${e.message}")
             // Return empty markers if not supported
             SkipMarkers()
@@ -1229,9 +1211,31 @@ class JellyfinApiService(
                 )
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             emptyList()
         }
+    }
+
+    /** A single page; errors propagate so the grid can retain data and offer retry. */
+    suspend fun getLibraryPage(query: LibraryQuery, limit: Int = 60, startIndex: Int = 0): ItemsResponse {
+        val base = baseUrl.trimEnd('/')
+        val url = URLBuilder().takeFrom("$base/Users/$userId/Items").apply {
+            parameters.append("ParentId", query.parentId)
+            parameters.append("Recursive", "true")
+            parameters.append("IncludeItemTypes", query.types)
+            parameters.append("SortBy", query.sortBy)
+            parameters.append("SortOrder", if (query.descending) "Descending" else "Ascending")
+            parameters.append("Limit", limit.coerceIn(1, 100).toString())
+            parameters.append("StartIndex", startIndex.coerceAtLeast(0).toString())
+            parameters.append("EnableTotalRecordCount", "true")
+            parameters.append("EnableUserData", "true")
+            parameters.append("EnableImages", "true")
+            parameters.append("Fields", "DateCreated,ChildCount,RecursiveItemCount,Genres")
+            query.genre?.let { parameters.append("Genres", it) }
+            query.nameFrom?.let { parameters.append("NameStartsWithOrGreater", it) }
+        }.buildString()
+        return client.get(url) { getVideoRequestHeaders().forEach { (name, value) -> header(name, value) } }.body()
     }
 
     suspend fun getLibraryItems(libraryId: String, limit: Int = 100, startIndex: Int = 0): ItemsResponse {
@@ -1243,7 +1247,7 @@ class JellyfinApiService(
                 parameters.append("IncludeItemTypes", "Movie,Series,Episode")
                 parameters.append("Limit", limit.toString())
                 parameters.append("StartIndex", startIndex.toString())
-                parameters.append("Fields", "DateCreated,PremiereDate,Overview,UserData,ImageTags,ChildCount,RecursiveItemCount,Genres") // Include DateCreated, ChildCount and RecursiveItemCount for filtering empty shows
+                parameters.append("Fields", "DateCreated,Overview,ChildCount,RecursiveItemCount,Genres") // Include DateCreated, ChildCount and RecursiveItemCount for filtering empty shows
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -1252,6 +1256,7 @@ class JellyfinApiService(
             // Return all items - filtering based on settings will be done in UI layer
             response
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             ItemsResponse(Items = emptyList(), TotalRecordCount = 0)
         }
@@ -1263,7 +1268,7 @@ class JellyfinApiService(
             val url = URLBuilder().takeFrom("${base}Users/$userId/Items").apply {
                 parameters.append("IncludeItemTypes", "BoxSet")
                 parameters.append("Recursive", "true")
-                parameters.append("Fields", "ImageTags,ChildCount")
+                parameters.append("Fields", "ChildCount")
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -1272,31 +1277,10 @@ class JellyfinApiService(
             
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             emptyList()
         }
-    }
-    
-    suspend fun getAllLibraryItems(libraryId: String, limit: Int = 100): List<JellyfinItem> {
-        val allItems = mutableListOf<JellyfinItem>()
-        var startIndex = 0
-        var totalCount = 0
-        
-        do {
-            val response = getLibraryItems(libraryId, limit, startIndex)
-            allItems.addAll(response.Items)
-            
-            // Update total count from first response
-            if (totalCount == 0) {
-                totalCount = response.TotalRecordCount
-            }
-            
-            // Move to next page
-            startIndex += limit
-        } while (allItems.size < totalCount && response.Items.isNotEmpty())
-        
-        // Return all items - filtering based on settings will be done in UI layer
-        return allItems
     }
     
     suspend fun getSeasons(seriesId: String, forceRefresh: Boolean = false): List<JellyfinItem> {
@@ -1314,7 +1298,7 @@ class JellyfinApiService(
             val base = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
             val url = URLBuilder().takeFrom("${base}Shows/${seriesId}/Seasons").apply {
                 parameters.append("UserId", userId)
-                parameters.append("Fields", "Overview,UserData,ImageTags")
+                parameters.append("Fields", "Overview")
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -1328,6 +1312,7 @@ class JellyfinApiService(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching seasons for series $seriesId", e)
             e.printStackTrace()
             emptyList()
@@ -1350,7 +1335,7 @@ class JellyfinApiService(
             val url = URLBuilder().takeFrom("${base}Shows/${seriesId}/Episodes").apply {
                 parameters.append("UserId", userId)
                 parameters.append("SeasonId", seasonId)
-                parameters.append("Fields", "Overview,UserData,SeriesName,SeriesId,ImageTags,IndexNumber,ParentIndexNumber,Type")
+                parameters.append("Fields", "Overview")
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -1364,6 +1349,7 @@ class JellyfinApiService(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching episodes for season $seasonId", e)
             e.printStackTrace()
             emptyList()
@@ -1399,7 +1385,7 @@ class JellyfinApiService(
                 parameters.append("IncludeItemTypes", "Episode")
                 parameters.append("StartIndex", apiStartIndex.toString())
                 parameters.append("Limit", limit.toString())
-                parameters.append("Fields", "Overview,UserData,SeriesName,SeriesId,ImageTags,IndexNumber,ParentIndexNumber")
+                parameters.append("Fields", "Overview")
             }.buildString()
             
             android.util.Log.d("JellyfinAPI", "Fetching next episodes: seasonId=$seasonId, startIndex=$startIndex (API: $apiStartIndex)")
@@ -1411,6 +1397,7 @@ class JellyfinApiService(
             android.util.Log.d("JellyfinAPI", "Found ${response.Items.size} episodes starting from index $startIndex")
             response.Items.sortedBy { it.IndexNumber ?: 0 }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching next episodes for season $seasonId", e)
             e.printStackTrace()
             emptyList()
@@ -1434,7 +1421,7 @@ class JellyfinApiService(
             val url = URLBuilder().takeFrom("${base}Shows/$seriesId/Episodes").apply {
                 parameters.append("UserId", userId)
                 parameters.append("SeasonId", seasonId) // Filter by season to stay within the same season
-                parameters.append("Fields", "MediaSources,Overview,UserData,SeriesName,SeriesId,ImageTags,IndexNumber,ParentIndexNumber")
+                parameters.append("Fields", "MediaSources,Overview")
                 parameters.append("SortBy", "IndexNumber")
                 parameters.append("SortOrder", "Ascending")
             }.buildString()
@@ -1456,6 +1443,7 @@ class JellyfinApiService(
             }
             nextEpisode
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching next episode in season", e)
             e.printStackTrace()
             null
@@ -1480,7 +1468,7 @@ class JellyfinApiService(
                 parameters.append("UserId", userId)
                 parameters.append("StartIndex", startIndex.toString())
                 parameters.append("Limit", "1")
-                parameters.append("Fields", "MediaSources,Overview,UserData,SeriesName,SeriesId,ImageTags,IndexNumber,ParentIndexNumber")
+                parameters.append("Fields", "MediaSources,Overview")
             }.buildString()
             
             android.util.Log.d("JellyfinAPI", "Fetching next episode (all seasons): seriesId=$seriesId, StartIndex=$startIndex (current episode index=$currentEpisodeIndex)")
@@ -1497,6 +1485,7 @@ class JellyfinApiService(
             }
             nextEpisode
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching next episode", e)
             e.printStackTrace()
             null
@@ -1521,6 +1510,7 @@ class JellyfinApiService(
             
             unwatchedCount
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error getting unwatched episode count for series $seriesId", e)
             0
         }
@@ -1542,6 +1532,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching movies by genre", e)
             e.printStackTrace()
             emptyList()
@@ -1564,6 +1555,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching series by genre", e)
             e.printStackTrace()
             emptyList()
@@ -1586,6 +1578,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching movies by person", e)
             e.printStackTrace()
             emptyList()
@@ -1600,7 +1593,7 @@ class JellyfinApiService(
             val base = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
             val url = URLBuilder().takeFrom("${base}Users/$userId/Items/Resume").apply {
                 parameters.append("IncludeItemTypes", "Movie")
-                parameters.append("Fields", "ImageTags,UserData")
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry.
                 parameters.append("SortBy", "DatePlayed")
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
@@ -1611,10 +1604,11 @@ class JellyfinApiService(
             }.body()
             
             // Sort client-side by LastPlayedDate (most recently played first)
-            response.Items.sortedByDescending { item ->
+            recoverPositions(response.Items).sortedByDescending { item ->
                 item.getLastPlayedDateForSort()
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching continue watching movies", e)
             emptyList()
         }
@@ -1633,7 +1627,7 @@ class JellyfinApiService(
                 parameters.append("SortBy", "CommunityRating")
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
-                parameters.append("Fields", "ImageTags,CommunityRating,UserData")
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry.
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -1641,6 +1635,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching top unwatched movies", e)
             emptyList()
         }
@@ -1659,7 +1654,7 @@ class JellyfinApiService(
                 parameters.append("SortBy", "DatePlayed")
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
-                parameters.append("Fields", "ImageTags,UserData")
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry.
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -1667,6 +1662,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching recently watched movies", e)
             emptyList()
         }
@@ -1685,7 +1681,7 @@ class JellyfinApiService(
                 parameters.append("SortBy", "SortName")
                 parameters.append("SortOrder", "Ascending")
                 parameters.append("Limit", limit.toString())
-                parameters.append("Fields", "ImageTags,UserData")
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry.
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -1693,6 +1689,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching favorite movies", e)
             emptyList()
         }
@@ -1711,7 +1708,7 @@ class JellyfinApiService(
             val url = URLBuilder().takeFrom("${base}Users/$userId/Items/Resume").apply {
                 parameters.append("IncludeItemTypes", "Movie")
                 parameters.append("ParentId", libraryId)
-                parameters.append("Fields", "ImageTags,UserData")
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry.
                 parameters.append("SortBy", "DatePlayed")
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
@@ -1722,10 +1719,11 @@ class JellyfinApiService(
             }.body()
             
             // Sort client-side by LastPlayedDate (most recently played first)
-            response.Items.sortedByDescending { item ->
+            recoverPositions(response.Items).sortedByDescending { item ->
                 item.getLastPlayedDateForSort()
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching continue watching movies from library $libraryId", e)
             emptyList()
         }
@@ -1745,7 +1743,7 @@ class JellyfinApiService(
                 parameters.append("SortBy", "CommunityRating")
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
-                parameters.append("Fields", "ImageTags,CommunityRating,UserData")
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry.
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -1753,6 +1751,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching top unwatched movies from library $libraryId", e)
             emptyList()
         }
@@ -1772,7 +1771,7 @@ class JellyfinApiService(
                 parameters.append("SortBy", "DatePlayed")
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
-                parameters.append("Fields", "ImageTags,UserData")
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry.
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -1780,6 +1779,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching recently watched movies from library $libraryId", e)
             emptyList()
         }
@@ -1799,7 +1799,7 @@ class JellyfinApiService(
                 parameters.append("SortBy", "SortName")
                 parameters.append("SortOrder", "Ascending")
                 parameters.append("Limit", limit.toString())
-                parameters.append("Fields", "ImageTags,UserData")
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry.
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -1807,6 +1807,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching favorite movies from library $libraryId", e)
             emptyList()
         }
@@ -1826,7 +1827,7 @@ class JellyfinApiService(
                 parameters.append("IncludeItemTypes", "Episode")
                 parameters.append("ParentId", libraryId)
                 // Explicitly include Type field to ensure proper routing in UI
-                parameters.append("Fields", "ImageTags,UserData,SeriesName,SeriesId,IndexNumber,ParentIndexNumber,Type")
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry.
                 parameters.append("SortBy", "DatePlayed")
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
@@ -1837,10 +1838,11 @@ class JellyfinApiService(
             }.body()
             
             // Sort client-side by LastPlayedDate (most recently played first)
-            response.Items.sortedByDescending { item ->
+            recoverPositions(response.Items).sortedByDescending { item ->
                 item.getLastPlayedDateForSort()
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching continue watching episodes from library $libraryId", e)
             emptyList()
         }
@@ -1857,15 +1859,16 @@ class JellyfinApiService(
                 parameters.append("ParentId", libraryId)
                 parameters.append("Limit", limit.toString())
                 // Explicitly include Type field to ensure proper routing in UI
-                parameters.append("Fields", "ImageTags,UserData,SeriesName,SeriesId,Type")
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry.
                 parameters.append("EnableResumable", "false")
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
                                 header("X-Emby-Authorization", "MediaBrowser Client=\"Elefin\", Device=\"Android TV\", DeviceId=\"\", Version=\"${BuildConfig.VERSION_NAME}\", Token=\"$accessToken\"")
             }.body()
-            response.Items
+            recoverPositions(response.Items)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching next up episodes from library $libraryId", e)
             emptyList()
         }
@@ -1885,7 +1888,7 @@ class JellyfinApiService(
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
                 // Explicitly include Type field to ensure proper routing in UI
-                parameters.append("Fields", "ImageTags,SeriesName,SeriesId,IndexNumber,ParentIndexNumber,PremiereDate,Type")
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry.
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -1893,6 +1896,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching recently released episodes from library $libraryId", e)
             emptyList()
         }
@@ -1912,7 +1916,7 @@ class JellyfinApiService(
                 parameters.append("SortBy", "Random")
                 parameters.append("SortOrder", "Ascending")
                 parameters.append("Limit", limit.toString())
-                parameters.append("Fields", "ImageTags,Genres,CommunityRating,UserData,Overview")
+                parameters.append("Fields", "Genres,Overview")
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -1920,6 +1924,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching random unwatched shows from library $libraryId", e)
             emptyList()
         }
@@ -1938,7 +1943,7 @@ class JellyfinApiService(
                 parameters.append("SortBy", "CommunityRating")
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
-                parameters.append("Fields", "ImageTags,Genres,CommunityRating,UserData")
+                parameters.append("Fields", "Genres")
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -1946,6 +1951,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching top rated shows from library $libraryId", e)
             emptyList()
         }
@@ -1965,7 +1971,7 @@ class JellyfinApiService(
                 parameters.append("SortBy", "Random")
                 parameters.append("SortOrder", "Ascending")
                 parameters.append("Limit", limit.toString())
-                parameters.append("Fields", "ImageTags,Genres,CommunityRating,UserData,ChildCount,RecursiveItemCount")
+                parameters.append("Fields", "Genres,ChildCount,RecursiveItemCount")
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -1973,6 +1979,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching shows by genre '$genre' from library $libraryId", e)
             emptyList()
         }
@@ -1996,6 +2003,7 @@ class JellyfinApiService(
             }.body()
             response.Items.mapNotNull { it.Name }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching genres from library $libraryId", e)
             emptyList()
         }
@@ -2019,6 +2027,7 @@ class JellyfinApiService(
             }.body()
             response.Items.mapNotNull { it.Name }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching movie genres from library $libraryId", e)
             emptyList()
         }
@@ -2038,7 +2047,7 @@ class JellyfinApiService(
                 parameters.append("SortBy", "CommunityRating,SortName")
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
-                parameters.append("Fields", "Overview,Genres,CommunityRating,CriticRating,ProviderIds,UserData")
+                parameters.append("Fields", "Overview,Genres,ProviderIds")
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -2046,6 +2055,7 @@ class JellyfinApiService(
             }.body()
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error fetching movies by genre '$genre' from library $libraryId", e)
             emptyList()
         }
@@ -2088,6 +2098,7 @@ class JellyfinApiService(
             }
             isSuccessful
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error marking item as watched", e)
             e.printStackTrace()
             false
@@ -2126,6 +2137,7 @@ class JellyfinApiService(
             
             isSuccessful
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error marking item as unwatched", e)
             false
         }
@@ -2177,6 +2189,7 @@ class JellyfinApiService(
             android.util.Log.d("JellyfinAPI", "✅ Reported playback START for item $itemId at position $positionTicks ticks (status: ${response.status})")
             true
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "❌ Error reporting playback start", e)
             e.printStackTrace()
             false
@@ -2239,6 +2252,7 @@ class JellyfinApiService(
             android.util.Log.d("JellyfinAPI", "📊 Reported playback PROGRESS for item $itemId at ${positionTicks / 10_000_000}s (status: ${response.status})")
             true
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "❌ Error reporting playback progress", e)
             e.printStackTrace()
             false
@@ -2267,16 +2281,8 @@ class JellyfinApiService(
                 "MediaBrowser Client=\"Elefin\", Device=\"Android TV\", DeviceId=\"\", Version=\"${BuildConfig.VERSION_NAME}\""
             }
             
-            // Build request body as JSON string
-            val requestBody = buildString {
-                append("{")
-                append("\"ItemId\":\"$itemId\",")
-                append("\"PositionTicks\":$positionTicks,")
-                if (audioStreamIndex != null) append("\"AudioStreamIndex\":$audioStreamIndex,")
-                if (subtitleStreamIndex != null) append("\"SubtitleStreamIndex\":$subtitleStreamIndex")
-                append("}")
-            }
-            
+            val requestBody = buildPlaybackStoppedPayload(itemId, positionTicks, audioStreamIndex, subtitleStreamIndex)
+
             val response = client.post(url) {
                                 header("X-Emby-Authorization", authHeader)
                 contentType(ContentType.Application.Json)
@@ -2285,6 +2291,7 @@ class JellyfinApiService(
             android.util.Log.d("JellyfinAPI", "🛑 Reported playback STOPPED for item $itemId at ${positionTicks / 10_000_000}s (status: ${response.status})")
             true
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "❌ Error reporting playback stopped", e)
             e.printStackTrace()
             false
@@ -2327,6 +2334,7 @@ class JellyfinApiService(
             android.util.Log.d("JellyfinAPI", "Item metadata refresh triggered successfully for $itemId")
             true
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error refreshing item metadata for $itemId", e)
             e.printStackTrace()
             false
@@ -2358,6 +2366,7 @@ class JellyfinApiService(
             android.util.Log.d("JellyfinAPI", "Library refresh triggered successfully")
             true
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error triggering library refresh", e)
             e.printStackTrace()
             false
@@ -2379,7 +2388,7 @@ class JellyfinApiService(
                 parameters.append("Recursive", "true")
                 parameters.append("IncludeItemTypes", "Movie,Series,Episode")
                 parameters.append("Limit", limit.toString())
-                parameters.append("Fields", "ImageTags,UserData,SeriesName,SeriesId,ChildCount")
+                parameters.append("Fields", "ChildCount")
             }.buildString()
             
             val response: ItemsResponse = client.get(url) {
@@ -2388,6 +2397,7 @@ class JellyfinApiService(
             
             response.Items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error searching for items", e)
             e.printStackTrace()
             emptyList()
@@ -2409,7 +2419,7 @@ class JellyfinApiService(
                 parameters.append("Recursive", "true")
                 parameters.append("IncludeItemTypes", itemType)
                 parameters.append("HasTmdbId", "true")
-                parameters.append("Fields", "ProviderIds,ImageTags,UserData")
+                parameters.append("Fields", "ProviderIds")
                 parameters.append("Limit", "100") // Limit results, we'll filter by TMDB ID
             }.buildString()
             
@@ -2430,6 +2440,7 @@ class JellyfinApiService(
             
             matchingItem
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error finding item by TMDB ID", e)
             null
         }
@@ -2451,7 +2462,7 @@ class JellyfinApiService(
                 parameters.append("SearchTerm", title)
                 parameters.append("Recursive", "true")
                 parameters.append("IncludeItemTypes", itemType)
-                parameters.append("Fields", "ProductionYear,ImageTags,UserData")
+                // Basic DTO fields (name, type, images and user data) are returned without a Fields entry.
                 parameters.append("Limit", "20")
             }.buildString()
             
@@ -2482,9 +2493,19 @@ class JellyfinApiService(
             
             matchingItem
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("JellyfinAPI", "Error finding item by title", e)
             null
         }
     }
 
 }
+
+/** Protocol JSON must be valid both with and without optional track indices. */
+internal fun buildPlaybackStoppedPayload(itemId: String, positionTicks: Long, audioIndex: Int?, subtitleIndex: Int?): String =
+    buildJsonObject {
+        put("ItemId", itemId)
+        put("PositionTicks", positionTicks)
+        audioIndex?.let { put("AudioStreamIndex", it) }
+        subtitleIndex?.let { put("SubtitleStreamIndex", it) }
+    }.toString()

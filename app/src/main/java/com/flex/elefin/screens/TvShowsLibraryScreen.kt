@@ -90,6 +90,8 @@ import coil.request.SuccessResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -116,6 +118,7 @@ fun TvShowsLibraryScreen(
     val config = remember { JellyfinConfig(context) }
     val settings = remember { AppSettings(context) }
     val scope = rememberCoroutineScope()
+    val requestSlots = remember { Semaphore(3) }
     
     // API Service
     val apiService = remember(config.serverUrl, config.accessToken, config.userId) {
@@ -222,7 +225,7 @@ fun TvShowsLibraryScreen(
     var availableGenres by remember { mutableStateOf<List<String>>(emptyList()) }
     
     // Data states for library grid
-    var libraryItems by remember { mutableStateOf<List<JellyfinItem>>(emptyList()) }
+    var libraryRefreshKey by remember { mutableStateOf(0L) }
     
     var isLoading by remember { mutableStateOf(true) }
     
@@ -289,18 +292,17 @@ fun TvShowsLibraryScreen(
                     
                     // Fetch all TV show data in parallel using coroutineScope
                     coroutineScope {
-                        val continueWatchingDeferred = async { apiService.getContinueWatchingEpisodesFromLibrary(libraryId, settings.rowCardCount) }
-                        val nextUpDeferred = async { apiService.getNextUpEpisodesFromLibrary(libraryId, settings.rowCardCount) }
-                        val recentlyReleasedDeferred = async { apiService.getRecentlyReleasedEpisodesFromLibrary(libraryId, settings.rowCardCount) }
-                        val recentlyAddedDeferred = async { apiService.getRecentlyAddedShowsFromLibrary(libraryId, settings.rowCardCount) }
-                        val startWatchingDeferred = async { apiService.getRandomUnwatchedShowsFromLibrary(libraryId, settings.rowCardCount) }
-                        val topRatedDeferred = async { apiService.getTopRatedShowsFromLibrary(libraryId, settings.rowCardCount) }
-                        val genre1Deferred = async { apiService.getShowsByGenreFromLibrary(libraryId, genre1, settings.rowCardCount) }
-                        val genre2Deferred = async { apiService.getShowsByGenreFromLibrary(libraryId, genre2, settings.rowCardCount) }
-                        val genre3Deferred = async { apiService.getShowsByGenreFromLibrary(libraryId, genre3, settings.rowCardCount) }
-                        val genre4Deferred = async { apiService.getShowsByGenreFromLibrary(libraryId, genre4, settings.rowCardCount) }
-                        val genre5Deferred = async { apiService.getShowsByGenreFromLibrary(libraryId, genre5, settings.rowCardCount) }
-                        val libraryDeferred = async { apiService.getAllLibraryItems(libraryId) }
+                        val continueWatchingDeferred = async { requestSlots.withPermit { apiService.getContinueWatchingEpisodesFromLibrary(libraryId, settings.rowCardCount) } }
+                        val nextUpDeferred = async { requestSlots.withPermit { apiService.getNextUpEpisodesFromLibrary(libraryId, settings.rowCardCount) } }
+                        val recentlyReleasedDeferred = async { requestSlots.withPermit { apiService.getRecentlyReleasedEpisodesFromLibrary(libraryId, settings.rowCardCount) } }
+                        val recentlyAddedDeferred = async { requestSlots.withPermit { apiService.getRecentlyAddedShowsFromLibrary(libraryId, settings.rowCardCount) } }
+                        val startWatchingDeferred = async { requestSlots.withPermit { apiService.getRandomUnwatchedShowsFromLibrary(libraryId, settings.rowCardCount) } }
+                        val topRatedDeferred = async { requestSlots.withPermit { apiService.getTopRatedShowsFromLibrary(libraryId, settings.rowCardCount) } }
+                        val genre1Deferred = async { requestSlots.withPermit { apiService.getShowsByGenreFromLibrary(libraryId, genre1, settings.rowCardCount) } }
+                        val genre2Deferred = async { requestSlots.withPermit { apiService.getShowsByGenreFromLibrary(libraryId, genre2, settings.rowCardCount) } }
+                        val genre3Deferred = async { requestSlots.withPermit { apiService.getShowsByGenreFromLibrary(libraryId, genre3, settings.rowCardCount) } }
+                        val genre4Deferred = async { requestSlots.withPermit { apiService.getShowsByGenreFromLibrary(libraryId, genre4, settings.rowCardCount) } }
+                        val genre5Deferred = async { requestSlots.withPermit { apiService.getShowsByGenreFromLibrary(libraryId, genre5, settings.rowCardCount) } }
                         
                         continueWatchingEpisodes = continueWatchingDeferred.await()
                         nextUpEpisodes = nextUpDeferred.await()
@@ -313,7 +315,6 @@ fun TvShowsLibraryScreen(
                         genreShows3 = genre3Deferred.await()
                         genreShows4 = genre4Deferred.await()
                         genreShows5 = genre5Deferred.await()
-                        libraryItems = libraryDeferred.await().filter { it.Type == "Episode" }
                     }
                     
                     Log.d("TvShowsLibraryScreen", "Loaded TV shows for '$libraryName': " +
@@ -327,7 +328,7 @@ fun TvShowsLibraryScreen(
                         "genre2($selectedGenre2)=${genreShows2.size}, " +
                         "genre3($selectedGenre3)=${genreShows3.size}, " +
                         "genre4($selectedGenre4)=${genreShows4.size}, " +
-                        "library=${libraryItems.size}")
+                        "library=${settings.rowCardCount}")
                     
                     // Set initial highlighted item
                     val firstItem = continueWatchingEpisodes.firstOrNull() 
@@ -340,6 +341,7 @@ fun TvShowsLibraryScreen(
                         instantHighlightedItem = firstItem
                     }
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("TvShowsLibraryScreen", "Error loading TV shows for library $libraryId", e)
                 }
             }
@@ -357,6 +359,7 @@ fun TvShowsLibraryScreen(
                         instantHighlightedItemDetails = details
                     }
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("TvShowsLibraryScreen", "获取影片详情失败", e)
                 }
             }
@@ -383,6 +386,7 @@ fun TvShowsLibraryScreen(
                     
                     Log.d("TvShowsLibraryScreen", "Loaded ${discoverData.size} discover TV show categories")
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("TvShowsLibraryScreen", "Error loading Jellyseerr discover TV shows", e)
                 }
             }
@@ -447,67 +451,13 @@ fun TvShowsLibraryScreen(
             try {
                 focusRequester.requestFocus()
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 // Ignore focus errors
             }
         }
     }
     
-    // Sort and filter library items
-    val sortedLibraryItems = remember(libraryItems, sortType, hideShowsWithZeroEpisodes, selectedGenreFilter) {
-        // First filter by genre if selected
-        val genreFilteredItems = if (selectedGenreFilter != null) {
-            libraryItems.filter { it.Genres?.contains(selectedGenreFilter) == true }
-        } else {
-            libraryItems
-        }
 
-        val sortedItems = when (sortType) {
-            SortType.Alphabetically -> genreFilteredItems.sortedBy { it.Name?.lowercase() }
-            SortType.DateAdded -> {
-                genreFilteredItems.sortedByDescending { 
-                    it.DateCreated?.let { dateStr ->
-                        try {
-                            val formats = listOf(
-                                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US),
-                                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US),
-                                SimpleDateFormat("yyyy-MM-dd", Locale.US)
-                            )
-                            formats.firstNotNullOfOrNull { format ->
-                                try { format.parse(dateStr)?.time } catch (e: Exception) { null }
-                            } ?: Long.MIN_VALUE
-                        } catch (e: Exception) { Long.MIN_VALUE }
-                    } ?: Long.MIN_VALUE
-                }
-            }
-            SortType.DateReleased -> {
-                genreFilteredItems.sortedByDescending { 
-                    it.PremiereDate?.let { dateStr ->
-                        try {
-                            val formats = listOf(
-                                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US),
-                                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US),
-                                SimpleDateFormat("yyyy-MM-dd", Locale.US)
-                            )
-                            formats.firstNotNullOfOrNull { format ->
-                                try { format.parse(dateStr)?.time } catch (e: Exception) { null }
-                            } ?: Long.MIN_VALUE
-                        } catch (e: Exception) { Long.MIN_VALUE }
-                    } ?: Long.MIN_VALUE
-                }
-            }
-        }
-        
-        // Filter shows with zero episodes if setting is enabled
-        if (hideShowsWithZeroEpisodes) {
-            sortedItems.filter { item ->
-                // Keep items with episodes (RecursiveItemCount > 0)
-                val episodeCount = item.RecursiveItemCount ?: item.ChildCount ?: 0
-                episodeCount > 0
-            }
-        } else {
-            sortedItems
-        }
-    }
     
     // Helper function to filter shows with zero episodes
     fun List<JellyfinItem>.filterEmptyShows(): List<JellyfinItem> {
@@ -581,34 +531,15 @@ fun TvShowsLibraryScreen(
                     }
                     
                     // Extract palette from the current image URL
-                    LaunchedEffect(imageUrl) {
-                        if (imageUrl.isNotEmpty()) {
-                            withContext(Dispatchers.IO) {
-                                try {
-                                    val loader = coil.ImageLoader(context)
-                                    val request = ImageRequest.Builder(context)
-                                        .data(imageUrl)
-                                        .allowHardware(false) // Required for Palette
-                                        .build()
-                                    
-                                    val result = loader.execute(request)
-                                    if (result is SuccessResult) {
-                                        val bitmap = (result.drawable as? BitmapDrawable)?.bitmap
-                                        if (bitmap != null) {
-                                            val palette = PlexPaletteExtractor.extract(context, bitmap)
-                                            withContext(Dispatchers.Main) {
-                                                currentArtworkPalette = palette
-                                            }
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e("TvShowsLibraryScreen", "Error extracting palette", e)
-                                }
-                            }
-                        } else {
-                            currentArtworkPalette = null
-                        }
-                    }
+                    LaunchedEffect(imageUrl, apiService) {
+                try {
+                    currentArtworkPalette = com.flex.elefin.ui.ArtworkPaletteLoader.load(context, imageUrl, apiService)
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    currentArtworkPalette = null
+                }
+            }
                     
                     // Use Crossfade for smooth fade in/out animation (same as home screen)
                     if (!darkModeEnabled && (selectedTab == "recommendations" || selectedTab == "discover")) {
@@ -817,17 +748,16 @@ fun TvShowsLibraryScreen(
                                                     // Refresh data - using library-specific methods
                                                     withContext(Dispatchers.IO) {
                                                         coroutineScope {
-                                                            val continueWatchingDeferred = async { apiService?.getContinueWatchingEpisodesFromLibrary(libraryId, settings.rowCardCount) ?: emptyList() }
-                                                            val recentlyReleasedDeferred = async { apiService?.getRecentlyReleasedEpisodesFromLibrary(libraryId, settings.rowCardCount) ?: emptyList() }
-                                                            val recentlyAddedDeferred = async { apiService?.getRecentlyAddedShowsFromLibrary(libraryId, settings.rowCardCount) ?: emptyList() }
-                                                            val startWatchingDeferred = async { apiService?.getRandomUnwatchedShowsFromLibrary(libraryId, settings.rowCardCount) ?: emptyList() }
-                                                            val topRatedDeferred = async { apiService?.getTopRatedShowsFromLibrary(libraryId, settings.rowCardCount) ?: emptyList() }
-                                                            val genre1Deferred = async { apiService?.getShowsByGenreFromLibrary(libraryId, genre1, settings.rowCardCount) ?: emptyList() }
-                                                            val genre2Deferred = async { apiService?.getShowsByGenreFromLibrary(libraryId, genre2, settings.rowCardCount) ?: emptyList() }
-                                                            val genre3Deferred = async { apiService?.getShowsByGenreFromLibrary(libraryId, genre3, settings.rowCardCount) ?: emptyList() }
-                                                            val genre4Deferred = async { apiService?.getShowsByGenreFromLibrary(libraryId, genre4, settings.rowCardCount) ?: emptyList() }
-                                                            val genre5Deferred = async { apiService?.getShowsByGenreFromLibrary(libraryId, genre5, settings.rowCardCount) ?: emptyList() }
-                                                            val libraryDeferred = async { apiService?.getAllLibraryItems(libraryId) ?: emptyList() }
+                                                            val continueWatchingDeferred = async { requestSlots.withPermit { apiService?.getContinueWatchingEpisodesFromLibrary(libraryId, settings.rowCardCount) ?: emptyList() } }
+                                                            val recentlyReleasedDeferred = async { requestSlots.withPermit { apiService?.getRecentlyReleasedEpisodesFromLibrary(libraryId, settings.rowCardCount) ?: emptyList() } }
+                                                            val recentlyAddedDeferred = async { requestSlots.withPermit { apiService?.getRecentlyAddedShowsFromLibrary(libraryId, settings.rowCardCount) ?: emptyList() } }
+                                                            val startWatchingDeferred = async { requestSlots.withPermit { apiService?.getRandomUnwatchedShowsFromLibrary(libraryId, settings.rowCardCount) ?: emptyList() } }
+                                                            val topRatedDeferred = async { requestSlots.withPermit { apiService?.getTopRatedShowsFromLibrary(libraryId, settings.rowCardCount) ?: emptyList() } }
+                                                            val genre1Deferred = async { requestSlots.withPermit { apiService?.getShowsByGenreFromLibrary(libraryId, genre1, settings.rowCardCount) ?: emptyList() } }
+                                                            val genre2Deferred = async { requestSlots.withPermit { apiService?.getShowsByGenreFromLibrary(libraryId, genre2, settings.rowCardCount) ?: emptyList() } }
+                                                            val genre3Deferred = async { requestSlots.withPermit { apiService?.getShowsByGenreFromLibrary(libraryId, genre3, settings.rowCardCount) ?: emptyList() } }
+                                                            val genre4Deferred = async { requestSlots.withPermit { apiService?.getShowsByGenreFromLibrary(libraryId, genre4, settings.rowCardCount) ?: emptyList() } }
+                                                            val genre5Deferred = async { requestSlots.withPermit { apiService?.getShowsByGenreFromLibrary(libraryId, genre5, settings.rowCardCount) ?: emptyList() } }
                                                             
                                                             continueWatchingEpisodes = continueWatchingDeferred.await()
                                                             recentlyReleasedEpisodes = recentlyReleasedDeferred.await()
@@ -839,12 +769,12 @@ fun TvShowsLibraryScreen(
                                                             genreShows3 = genre3Deferred.await()
                                                             genreShows4 = genre4Deferred.await()
                                                             genreShows5 = genre5Deferred.await()
-                                                            libraryItems = libraryDeferred.await().filter { it.Type == "Episode" }
                                                         }
                                                     }
                                                     
                                                     Log.d("TvShowsLibraryScreen", "Manual refresh completed")
                                                 } catch (e: Exception) {
+                                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                                     Log.e("TvShowsLibraryScreen", "Manual refresh error", e)
                                                 } finally {
                                                     isRefreshing = false
@@ -1169,14 +1099,13 @@ fun TvShowsLibraryScreen(
                                     }
                                 )
                         ) {
-                            item {
-                                Column(
-                                    modifier = Modifier
-                                        .padding(top = 24.dp) // Increased to ensure "继续观看" title is visible
-                                        .focusRequester(focusRequester)
-                                ) {
-                                    // Continue Watching row
-                                    if (continueWatchingEpisodes.isNotEmpty()) {
+                            var firstRecommendationRow = true
+                            // Continue Watching row
+                            if (continueWatchingEpisodes.isNotEmpty()) {
+                                val focusThisRow = firstRecommendationRow
+                                firstRecommendationRow = false
+                                item(key = "continueWatchingEpisodes", contentType = "recommendation_row") {
+                                    Column(modifier = if (focusThisRow) Modifier.padding(top = 24.dp).focusRequester(focusRequester) else Modifier) {
                                         Text(
                                             text = "继续观看",
                                             style = MaterialTheme.typography.headlineMedium.copy(
@@ -1184,7 +1113,7 @@ fun TvShowsLibraryScreen(
                                             ),
                                             modifier = Modifier.padding(bottom = 12.dp, top = 12.dp)
                                         )
-                                        
+
                                         LazyRow(
                                             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = (15.87.dp * 1.4553f * 1.2f * 1.3f)),
                                             horizontalArrangement = Arrangement.spacedBy(26.dp),
@@ -1224,9 +1153,14 @@ fun TvShowsLibraryScreen(
                                             }
                                         }
                                     }
-
-                                    // Next Up row
-                                    if (nextUpEpisodes.isNotEmpty()) {
+                                }
+                            }
+                            // Next Up row
+                            if (nextUpEpisodes.isNotEmpty()) {
+                                val focusThisRow = firstRecommendationRow
+                                firstRecommendationRow = false
+                                item(key = "nextUpEpisodes", contentType = "recommendation_row") {
+                                    Column(modifier = if (focusThisRow) Modifier.padding(top = 24.dp).focusRequester(focusRequester) else Modifier) {
                                         Text(
                                             text = "接下来播放",
                                             style = MaterialTheme.typography.headlineMedium.copy(
@@ -1234,7 +1168,7 @@ fun TvShowsLibraryScreen(
                                             ),
                                             modifier = Modifier.padding(bottom = 12.dp, top = 30.36.dp)
                                         )
-                                        
+
                                         LazyRow(
                                             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = (15.87.dp * 1.4553f * 1.2f * 1.3f)),
                                             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -1273,9 +1207,14 @@ fun TvShowsLibraryScreen(
                                             }
                                         }
                                     }
-                                    
-                                    // Recently Released Episodes row - using poster cards (vertical)
-                                    if (recentlyReleasedEpisodes.isNotEmpty()) {
+                                }
+                            }
+                            // Recently Released Episodes row - using poster cards (vertical)
+                            if (recentlyReleasedEpisodes.isNotEmpty()) {
+                                val focusThisRow = firstRecommendationRow
+                                firstRecommendationRow = false
+                                item(key = "recentlyReleasedEpisodes", contentType = "recommendation_row") {
+                                    Column(modifier = if (focusThisRow) Modifier.padding(top = 24.dp).focusRequester(focusRequester) else Modifier) {
                                         Text(
                                             text = "最近更新的剧集",
                                             style = MaterialTheme.typography.headlineMedium.copy(
@@ -1283,7 +1222,7 @@ fun TvShowsLibraryScreen(
                                             ),
                                             modifier = Modifier.padding(bottom = 12.dp, top = 30.36.dp)
                                         )
-                                        
+
                                         LazyRow(
                                             contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 12.dp, bottom = (15.87.dp * 1.4553f * 1.2f * 1.3f)),
                                             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -1294,7 +1233,7 @@ fun TvShowsLibraryScreen(
                                                 Modifier
                                             }
                                         ) {
-                                            items(recentlyReleasedEpisodes) { item ->
+                                            items(items = recentlyReleasedEpisodes, key = { it.Id }, contentType = { "media_card" }) { item ->
                                                 // Use poster card for episodes - shows series poster
                                                 JellyfinHorizontalCard(
                                                     item = item,
@@ -1318,9 +1257,14 @@ fun TvShowsLibraryScreen(
                                             }
                                         }
                                     }
-                                    
-                                    // Recently Added in TV Shows row
-                                    if (filteredRecentlyAddedShows.isNotEmpty()) {
+                                }
+                            }
+                            // Recently Added in TV Shows row
+                            if (filteredRecentlyAddedShows.isNotEmpty()) {
+                                val focusThisRow = firstRecommendationRow
+                                firstRecommendationRow = false
+                                item(key = "filteredRecentlyAddedShows", contentType = "recommendation_row") {
+                                    Column(modifier = if (focusThisRow) Modifier.padding(top = 24.dp).focusRequester(focusRequester) else Modifier) {
                                         Text(
                                             text = "$libraryName · 最近添加",
                                             style = MaterialTheme.typography.headlineMedium.copy(
@@ -1328,7 +1272,7 @@ fun TvShowsLibraryScreen(
                                             ),
                                             modifier = Modifier.padding(bottom = 12.dp, top = 30.36.dp)
                                         )
-                                        
+
                                         LazyRow(
                                             contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 12.dp, bottom = (15.87.dp * 1.4553f * 1.2f * 1.3f)),
                                             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -1339,7 +1283,7 @@ fun TvShowsLibraryScreen(
                                                 Modifier
                                             }
                                         ) {
-                                            items(filteredRecentlyAddedShows) { item ->
+                                            items(items = filteredRecentlyAddedShows, key = { it.Id }, contentType = { "media_card" }) { item ->
                                                 JellyfinHorizontalCard(
                                                     item = item,
                                                     apiService = apiService,
@@ -1361,9 +1305,14 @@ fun TvShowsLibraryScreen(
                                             }
                                         }
                                     }
-                                    
-                                    // Start Watching row (random unwatched suggestions)
-                                    if (filteredStartWatchingShows.isNotEmpty()) {
+                                }
+                            }
+                            // Start Watching row (random unwatched suggestions)
+                            if (filteredStartWatchingShows.isNotEmpty()) {
+                                val focusThisRow = firstRecommendationRow
+                                firstRecommendationRow = false
+                                item(key = "filteredStartWatchingShows", contentType = "recommendation_row") {
+                                    Column(modifier = if (focusThisRow) Modifier.padding(top = 24.dp).focusRequester(focusRequester) else Modifier) {
                                         Text(
                                             text = "开始观看",
                                             style = MaterialTheme.typography.headlineMedium.copy(
@@ -1371,7 +1320,7 @@ fun TvShowsLibraryScreen(
                                             ),
                                             modifier = Modifier.padding(bottom = 12.dp, top = 30.36.dp)
                                         )
-                                        
+
                                         LazyRow(
                                             contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 12.dp, bottom = (15.87.dp * 1.4553f * 1.2f * 1.3f)),
                                             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -1382,7 +1331,7 @@ fun TvShowsLibraryScreen(
                                                 Modifier
                                             }
                                         ) {
-                                            items(filteredStartWatchingShows) { item ->
+                                            items(items = filteredStartWatchingShows, key = { it.Id }, contentType = { "media_card" }) { item ->
                                                 JellyfinHorizontalCard(
                                                     item = item,
                                                     apiService = apiService,
@@ -1404,9 +1353,14 @@ fun TvShowsLibraryScreen(
                                             }
                                         }
                                     }
-                                    
-                                    // Top Rated TV Shows row
-                                    if (filteredTopRatedShows.isNotEmpty()) {
+                                }
+                            }
+                            // Top Rated TV Shows row
+                            if (filteredTopRatedShows.isNotEmpty()) {
+                                val focusThisRow = firstRecommendationRow
+                                firstRecommendationRow = false
+                                item(key = "filteredTopRatedShows", contentType = "recommendation_row") {
+                                    Column(modifier = if (focusThisRow) Modifier.padding(top = 24.dp).focusRequester(focusRequester) else Modifier) {
                                         Text(
                                             text = "高分剧集",
                                             style = MaterialTheme.typography.headlineMedium.copy(
@@ -1414,7 +1368,7 @@ fun TvShowsLibraryScreen(
                                             ),
                                             modifier = Modifier.padding(bottom = 12.dp, top = 30.36.dp)
                                         )
-                                        
+
                                         LazyRow(
                                             contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 12.dp, bottom = (15.87.dp * 1.4553f * 1.2f * 1.3f)),
                                             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -1425,7 +1379,7 @@ fun TvShowsLibraryScreen(
                                                 Modifier
                                             }
                                         ) {
-                                            items(filteredTopRatedShows) { item ->
+                                            items(items = filteredTopRatedShows, key = { it.Id }, contentType = { "media_card" }) { item ->
                                                 JellyfinHorizontalCard(
                                                     item = item,
                                                     apiService = apiService,
@@ -1447,9 +1401,14 @@ fun TvShowsLibraryScreen(
                                             }
                                         }
                                     }
-                                    
-                                    // More in <Genre> row 1 (randomly selected genre)
-                                    if (filteredGenreShows1.isNotEmpty() && selectedGenre1.isNotEmpty()) {
+                                }
+                            }
+                            // More in <Genre> row 1 (randomly selected genre)
+                            if (filteredGenreShows1.isNotEmpty() && selectedGenre1.isNotEmpty()) {
+                                val focusThisRow = firstRecommendationRow
+                                firstRecommendationRow = false
+                                item(key = "filteredGenreShows1", contentType = "recommendation_row") {
+                                    Column(modifier = if (focusThisRow) Modifier.padding(top = 24.dp).focusRequester(focusRequester) else Modifier) {
                                         Text(
                                             text = "$selectedGenre1 更多",
                                             style = MaterialTheme.typography.headlineMedium.copy(
@@ -1457,7 +1416,7 @@ fun TvShowsLibraryScreen(
                                             ),
                                             modifier = Modifier.padding(bottom = 12.dp, top = 30.36.dp)
                                         )
-                                        
+
                                         LazyRow(
                                             contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 12.dp, bottom = (15.87.dp * 1.4553f * 1.2f * 1.3f)),
                                             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -1468,7 +1427,7 @@ fun TvShowsLibraryScreen(
                                                 Modifier
                                             }
                                         ) {
-                                            items(filteredGenreShows1) { item ->
+                                            items(items = filteredGenreShows1, key = { it.Id }, contentType = { "media_card" }) { item ->
                                                 JellyfinHorizontalCard(
                                                     item = item,
                                                     apiService = apiService,
@@ -1490,9 +1449,14 @@ fun TvShowsLibraryScreen(
                                             }
                                         }
                                     }
-                                    
-                                    // More in <Genre> row 2 (randomly selected genre)
-                                    if (filteredGenreShows2.isNotEmpty() && selectedGenre2.isNotEmpty()) {
+                                }
+                            }
+                            // More in <Genre> row 2 (randomly selected genre)
+                            if (filteredGenreShows2.isNotEmpty() && selectedGenre2.isNotEmpty()) {
+                                val focusThisRow = firstRecommendationRow
+                                firstRecommendationRow = false
+                                item(key = "filteredGenreShows2", contentType = "recommendation_row") {
+                                    Column(modifier = if (focusThisRow) Modifier.padding(top = 24.dp).focusRequester(focusRequester) else Modifier) {
                                         Text(
                                             text = "$selectedGenre2 更多",
                                             style = MaterialTheme.typography.headlineMedium.copy(
@@ -1500,7 +1464,7 @@ fun TvShowsLibraryScreen(
                                             ),
                                             modifier = Modifier.padding(bottom = 12.dp, top = 30.36.dp)
                                         )
-                                        
+
                                         LazyRow(
                                             contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 12.dp, bottom = (15.87.dp * 1.4553f * 1.2f * 1.3f)),
                                             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -1511,7 +1475,7 @@ fun TvShowsLibraryScreen(
                                                 Modifier
                                             }
                                         ) {
-                                            items(filteredGenreShows2) { item ->
+                                            items(items = filteredGenreShows2, key = { it.Id }, contentType = { "media_card" }) { item ->
                                                 JellyfinHorizontalCard(
                                                     item = item,
                                                     apiService = apiService,
@@ -1533,9 +1497,14 @@ fun TvShowsLibraryScreen(
                                             }
                                         }
                                     }
-                                    
-                                    // More in <Genre> row 3 (randomly selected genre)
-                                    if (filteredGenreShows3.isNotEmpty() && selectedGenre3.isNotEmpty()) {
+                                }
+                            }
+                            // More in <Genre> row 3 (randomly selected genre)
+                            if (filteredGenreShows3.isNotEmpty() && selectedGenre3.isNotEmpty()) {
+                                val focusThisRow = firstRecommendationRow
+                                firstRecommendationRow = false
+                                item(key = "filteredGenreShows3", contentType = "recommendation_row") {
+                                    Column(modifier = if (focusThisRow) Modifier.padding(top = 24.dp).focusRequester(focusRequester) else Modifier) {
                                         Text(
                                             text = "$selectedGenre3 更多",
                                             style = MaterialTheme.typography.headlineMedium.copy(
@@ -1543,7 +1512,7 @@ fun TvShowsLibraryScreen(
                                             ),
                                             modifier = Modifier.padding(bottom = 12.dp, top = 30.36.dp)
                                         )
-                                        
+
                                         LazyRow(
                                             contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 12.dp, bottom = (15.87.dp * 1.4553f * 1.2f * 1.3f)),
                                             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -1554,7 +1523,7 @@ fun TvShowsLibraryScreen(
                                                 Modifier
                                             }
                                         ) {
-                                            items(filteredGenreShows3) { item ->
+                                            items(items = filteredGenreShows3, key = { it.Id }, contentType = { "media_card" }) { item ->
                                                 JellyfinHorizontalCard(
                                                     item = item,
                                                     apiService = apiService,
@@ -1576,9 +1545,14 @@ fun TvShowsLibraryScreen(
                                             }
                                         }
                                     }
-                                    
-                                    // More in <Genre> row 4 (randomly selected genre)
-                                    if (filteredGenreShows4.isNotEmpty() && selectedGenre4.isNotEmpty()) {
+                                }
+                            }
+                            // More in <Genre> row 4 (randomly selected genre)
+                            if (filteredGenreShows4.isNotEmpty() && selectedGenre4.isNotEmpty()) {
+                                val focusThisRow = firstRecommendationRow
+                                firstRecommendationRow = false
+                                item(key = "filteredGenreShows4", contentType = "recommendation_row") {
+                                    Column(modifier = if (focusThisRow) Modifier.padding(top = 24.dp).focusRequester(focusRequester) else Modifier) {
                                         Text(
                                             text = "$selectedGenre4 更多",
                                             style = MaterialTheme.typography.headlineMedium.copy(
@@ -1586,7 +1560,7 @@ fun TvShowsLibraryScreen(
                                             ),
                                             modifier = Modifier.padding(bottom = 12.dp, top = 30.36.dp)
                                         )
-                                        
+
                                         LazyRow(
                                             contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 12.dp, bottom = (15.87.dp * 1.4553f * 1.2f * 1.3f)),
                                             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -1597,7 +1571,7 @@ fun TvShowsLibraryScreen(
                                                 Modifier
                                             }
                                         ) {
-                                            items(filteredGenreShows4) { item ->
+                                            items(items = filteredGenreShows4, key = { it.Id }, contentType = { "media_card" }) { item ->
                                                 JellyfinHorizontalCard(
                                                     item = item,
                                                     apiService = apiService,
@@ -1619,9 +1593,14 @@ fun TvShowsLibraryScreen(
                                             }
                                         }
                                     }
-                                    
-                                    // More in <Genre> row 5 (randomly selected genre)
-                                    if (filteredGenreShows5.isNotEmpty() && selectedGenre5.isNotEmpty()) {
+                                }
+                            }
+                            // More in <Genre> row 5 (randomly selected genre)
+                            if (filteredGenreShows5.isNotEmpty() && selectedGenre5.isNotEmpty()) {
+                                val focusThisRow = firstRecommendationRow
+                                firstRecommendationRow = false
+                                item(key = "filteredGenreShows5", contentType = "recommendation_row") {
+                                    Column(modifier = if (focusThisRow) Modifier.padding(top = 24.dp).focusRequester(focusRequester) else Modifier) {
                                         Text(
                                             text = "$selectedGenre5 更多",
                                             style = MaterialTheme.typography.headlineMedium.copy(
@@ -1629,7 +1608,7 @@ fun TvShowsLibraryScreen(
                                             ),
                                             modifier = Modifier.padding(bottom = 12.dp, top = 30.36.dp)
                                         )
-                                        
+
                                         LazyRow(
                                             contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 12.dp, bottom = (15.87.dp * 1.4553f * 1.2f * 1.3f)),
                                             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -1640,7 +1619,7 @@ fun TvShowsLibraryScreen(
                                                 Modifier
                                             }
                                         ) {
-                                            items(filteredGenreShows5) { item ->
+                                            items(items = filteredGenreShows5, key = { it.Id }, contentType = { "media_card" }) { item ->
                                                 JellyfinHorizontalCard(
                                                     item = item,
                                                     apiService = apiService,
@@ -1667,169 +1646,21 @@ fun TvShowsLibraryScreen(
                         }
                     }
                 } else if (selectedTab == "library") {
-                    // Library grid view (same as home screen library view)
-                    val columns = 6
-                    val lazyListState = rememberLazyListState()
-                    
-                    // A-Z Index state - only show when sorted alphabetically AND not in low power mode
-                    val showAlphabetIndex = sortType == SortType.Alphabetically && !lowPowerMode.value
-                    val letterIndexMap = remember(sortedLibraryItems, columns) {
-                        if (showAlphabetIndex) buildTvShowLetterIndexMap(sortedLibraryItems, columns) else emptyMap()
-                    }
-                    val availableLetters = remember(letterIndexMap) { letterIndexMap.keys }
-                    var selectedLetter by remember { mutableStateOf<Char?>(null) }
-                    var showLetterOverlay by remember { mutableStateOf(false) }
-                    
-                    // Auto-hide letter overlay after delay
-                    LaunchedEffect(selectedLetter) {
-                        if (selectedLetter != null) {
-                            showLetterOverlay = true
-                            delay(800)
-                            showLetterOverlay = false
-                        }
-                    }
-                    
-                    // Scroll to letter when selected
-                    LaunchedEffect(selectedLetter, letterIndexMap) {
-                        if (selectedLetter != null && letterIndexMap.containsKey(selectedLetter)) {
-                            val rowIndex = letterIndexMap[selectedLetter] ?: return@LaunchedEffect
-                            lazyListState.animateScrollToItem(rowIndex)
-                        }
-                    }
-                    
-                    // Container for library grid - positioned below tab row
-                    Spacer(modifier = Modifier.height(86.dp))
-                    
-                    if (sortedLibraryItems.isNotEmpty()) {
-                        androidx.tv.material3.Surface(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(top = 86.dp)
-                                .then(
-                                    if (debugOutlinesEnabled) {
-                                        Modifier.border(3.dp, Color.Green)
-                                    } else {
-                                        Modifier
-                                    }
-                                ),
-                            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-                            colors = androidx.tv.material3.SurfaceDefaults.colors(
-                                containerColor = Color.Transparent
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize()
-                            ) {
-                                // A-Z Index Bar on the left (only when sorted alphabetically)
-                                if (showAlphabetIndex) {
-                                    Box(
-                                        modifier = Modifier
-                                            .width(48.dp)
-                                            .fillMaxHeight()
-                                            .padding(start = 8.dp, top = 24.dp, bottom = 24.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        TvShowAlphabetIndexBar(
-                                            availableLetters = availableLetters,
-                                            selectedLetter = selectedLetter,
-                                            onLetterFocused = { letter ->
-                                                selectedLetter = letter
-                                            },
-                                            onLetterSelected = { letter ->
-                                                selectedLetter = letter
-                                            }
-                                        )
-                                    }
-                                }
-                                
-                                // Library grid
-                                LazyColumn(
-                                    state = lazyListState,
-                                    contentPadding = PaddingValues(bottom = 20.dp * 1.15f, top = 24.dp),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(start = if (showAlphabetIndex) 8.dp else 54.dp, end = 38.dp)
-                                        .focusRequester(focusRequester)
-                                ) {
-                                    items(
-                                        items = sortedLibraryItems.chunked(columns),
-                                        key = { rowItems -> rowItems.firstOrNull()?.Id ?: "" },
-                                        contentType = { "library_row" }
-                                    ) { rowItems ->
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 10.dp),
-                                            horizontalArrangement = Arrangement.Center
-                                        ) {
-                                            Spacer(modifier = Modifier.weight(1f))
-                                            
-                                            rowItems.forEachIndexed { index, item ->
-                                                if (index > 0) {
-                                                    Spacer(modifier = Modifier.width(20.dp))
-                                                }
-                                                Column(
-                                                    modifier = Modifier.width(105.dp),
-                                                    horizontalAlignment = Alignment.CenterHorizontally
-                                                ) {
-                                                    JellyfinHorizontalCard(
-                                                        item = item,
-                                                        apiService = apiService,
-                                                        onClick = { onItemClick(item, 0L) },
-                                                        onFocusChanged = { isFocused ->
-                                                            if (isFocused) {
-                                                                instantHighlightedItem = item
-                                                                backgroundChangeJob?.cancel()
-                                                                backgroundChangeJob = scope.launch {
-                                                                    delay(1000)
-                                                                    highlightedItem = item
-                                                                }
-                                                            }
-                                                        },
-                                                        useSimpleCards = useSimpleCards.value,
-                                                        useGoogleTvCards = useGoogleTvCards.value,
-                                                        lowPowerMode = lowPowerMode.value
-                                                    )
-                                                    // Item name below the card
-                                                    if (!lowPowerMode.value) {
-                                                        Text(
-                                                            text = item.Name ?: "",
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            color = Color.White.copy(alpha = 0.9f),
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis,
-                                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                                            modifier = Modifier
-                                                                .padding(top = 6.dp)
-                                                                .fillMaxWidth()
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                            
-                                            // Fill remaining space if row has fewer than columns items
-                                            if (rowItems.size < columns) {
-                                                repeat(columns - rowItems.size) {
-                                                    Spacer(modifier = Modifier.width(105.dp + 20.dp))
-                                                }
-                                            }
-                                            
-                                            Spacer(modifier = Modifier.weight(1f))
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            // Letter overlay (shown briefly when navigating A-Z)
-                            if (showAlphabetIndex) {
-                                TvShowLetterOverlay(
-                                    letter = selectedLetter,
-                                    visible = showLetterOverlay
-                                )
-                            }
-                        }
-                    }
-                } else if (selectedTab == "discover") {
+            PagedLibraryGrid(
+                api = apiService, libraryId = libraryId, types = "Series",
+                sort = sortType, genre = selectedGenreFilter,
+                hideEmptySeries = settings.hideShowsWithZeroEpisodes,
+                lowPowerMode = lowPowerMode.value, simpleCards = useSimpleCards.value,
+                googleTvCards = useGoogleTvCards.value, refreshKey = libraryRefreshKey,
+                modifier = Modifier.fillMaxSize().padding(top = 86.dp, start = 30.dp, end = 18.dp),
+                onItemClick = onItemClick,
+                onItemFocused = { item ->
+                    instantHighlightedItem = item
+                    backgroundChangeJob?.cancel()
+                    backgroundChangeJob = scope.launch { delay(1000); highlightedItem = item }
+                }
+            )
+        } else if (selectedTab == "discover") {
                     // Discover tab content - Jellyseerr trending/popular/upcoming TV shows
                     if (jellyseerrApiService == null) {
                         // No Jellyseerr configured
@@ -2004,12 +1835,7 @@ fun TvShowsLibraryScreen(
                                         }
                                     )
                             ) {
-                                item {
-                                    Column(
-                                        modifier = Modifier
-                                            .padding(top = 24.dp)
-                                            .focusRequester(focusRequester)
-                                    ) {
+
                                         // Sort categories: "🔥 热门" first, then "热门", then "即将上映"
                                         val sortedCategories = discoverTvShowsByCategory.keys.sortedWith(
                                             compareBy<String> { 
@@ -2026,7 +1852,8 @@ fun TvShowsLibraryScreen(
                                             val shows = discoverTvShowsByCategory[categoryName] ?: return@forEachIndexed
                                             if (shows.isEmpty()) return@forEachIndexed
                                             
-                                            CategoryRow(
+                                            item(key = categoryName, contentType = "discovery_row") {
+CategoryRow(
                                                 categoryName = categoryName,
                                                 shows = shows,
                                                 titleTopPadding = if (index == 0) 12.dp else 30.36.dp,
@@ -2079,9 +1906,10 @@ fun TvShowsLibraryScreen(
                                                     }
                                                 }
                                             )
-                                        }
+
                                     }
-                                }
+}
+
                             }
                         }
                     }
@@ -2146,7 +1974,7 @@ fun TvShowsLibraryScreen(
                                     
                                     // Refresh library grid if in library tab
                                     if (selectedTab == "library") {
-                                        libraryItems = apiService?.getAllLibraryItems(libraryId) ?: emptyList()
+                                        libraryRefreshKey++
                                     }
                                 }
                             }
@@ -2226,7 +2054,7 @@ fun TvShowsLibraryScreen(
                                                 
                                                 // Refresh library grid if in library tab
                                                 if (selectedTab == "library") {
-                                                    libraryItems = apiService?.getAllLibraryItems(libraryId) ?: emptyList()
+                                                    libraryRefreshKey++
                                                 }
                                             }
                                         }

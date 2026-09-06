@@ -41,11 +41,31 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build release APKs
-        run: ./gradlew :app:assembleRelease --stacktrace
+      - name: Restore private release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ELEFIN_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$KEYSTORE_BASE64"
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/elefin-release.keystore"
 
-      # The build signs with the keystore committed in the repo (see README-ANDROID5.md),
-      # so no signing secrets are needed here.
+      - name: Test, lint and build API 21 release
+        env:
+          ELEFIN_KEYSTORE_FILE: ${{ runner.temp }}/elefin-release.keystore
+          ELEFIN_STORE_PASSWORD: ${{ secrets.ELEFIN_STORE_PASSWORD }}
+          ELEFIN_KEY_ALIAS: ${{ secrets.ELEFIN_KEY_ALIAS }}
+          ELEFIN_KEY_PASSWORD: ${{ secrets.ELEFIN_KEY_PASSWORD }}
+        run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleRelease --stacktrace
+
+      - name: Verify release version, API 21 APKs and legacy signing
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: python3 scripts/verify_api21_apks.py --release-tag "$RELEASE_TAG"
+
+      - name: Remove signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/elefin-release.keystore"
+
       - name: List outputs
         run: ls -lh app/build/outputs/apk/release/
 
@@ -56,12 +76,22 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
+      - name: Preserve R8 mapping for crash reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: elefin-r8-mapping
+          path: app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+
       # Only on a v* tag. Globbing rather than naming the files keeps this working
       # whichever way the per-ABI output naming resolves.
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          name: Elefin ${{ github.ref_name }} — Android 5 修复与性能优化
+          body_path: releases/${{ github.ref_name }}.md
           files: app/build/outputs/apk/release/*.apk
           generate_release_notes: true
           fail_on_unmatched_files: true
+          make_latest: "true"

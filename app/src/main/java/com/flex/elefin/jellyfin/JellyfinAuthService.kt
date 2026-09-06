@@ -42,15 +42,7 @@ class JellyfinAuthService(
     private val baseUrl: String,
     private val context: Context? = null
 ) {
-    private val client = HttpClient(Android) {
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                isLenient = true
-                encodeDefaults = false
-            })
-        }
-    }
+    private val client = com.flex.elefin.networking.SharedHttpClients.authentication
 
     private fun getDeviceId(): String {
         return try {
@@ -58,6 +50,7 @@ class JellyfinAuthService(
                 Settings.Secure.getString(it.contentResolver, Settings.Secure.ANDROID_ID)
             } ?: "android-tv-device"
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             "android-tv-device"
         }
     }
@@ -111,12 +104,14 @@ class JellyfinAuthService(
                 val errorBody = try {
                     response.bodyAsText()
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     "Could not read error body: ${e.message}"
                 }
                 println("Authentication failed: ${response.status} - $errorBody")
                 null
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             println("Authentication exception: ${e.message}")
             e.printStackTrace()
             null

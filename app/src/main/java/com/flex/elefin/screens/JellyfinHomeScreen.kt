@@ -137,6 +137,8 @@ import com.flex.elefin.ui.PlexBackdropGradient
 import android.graphics.drawable.BitmapDrawable
 import coil.request.SuccessResult
 import kotlinx.coroutines.Dispatchers
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 enum class SortType {
     Alphabetically,
@@ -218,6 +220,7 @@ fun JellyfinHomeScreen(
                     config = config
                 )
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 android.util.Log.e("JellyfinHomeScreen", "Error creating API service: ${e.message}", e)
                 null
             }
@@ -261,22 +264,22 @@ fun JellyfinHomeScreen(
         return
     }
     
-    val continueWatchingItemsState = repository?.continueWatchingItems?.collectAsState(initial = emptyList())
+    val continueWatchingItemsState = repository?.continueWatchingItems?.collectAsStateWithLifecycle()
     val continueWatchingItems = continueWatchingItemsState?.value ?: emptyList()
     
     // Collect error state so the error banner recomposes when a fetch fails
-    val errorState = repository?.error?.collectAsState(initial = null)
+    val errorState = repository?.error?.collectAsStateWithLifecycle()
     val loadError = errorState?.value
     
-    val nextUpItemsState = repository?.nextUpItems?.collectAsState(initial = emptyList())
+    val nextUpItemsState = repository?.nextUpItems?.collectAsStateWithLifecycle()
     val nextUpItems = nextUpItemsState?.value ?: emptyList()
     
-    val recentlyAddedMoviesByLibraryState = repository?.recentlyAddedMoviesByLibrary?.collectAsState(initial = emptyMap())
+    val recentlyAddedMoviesByLibraryState = repository?.recentlyAddedMoviesByLibrary?.collectAsStateWithLifecycle()
     val recentlyAddedMoviesByLibrary = recentlyAddedMoviesByLibraryState?.value ?: emptyMap()
     
     // Get movie libraries from the existing libraries state (defined later in the file)
     // We'll use the libraries state that's already defined, but filter for movie libraries
-    val movieLibrariesState = repository?.libraries?.collectAsState(initial = emptyList())
+    val movieLibrariesState = repository?.libraries?.collectAsStateWithLifecycle()
     val allMovieLibraries = movieLibrariesState?.value ?: emptyList()
     
     // Get movie libraries (libraries that have movies)
@@ -284,13 +287,13 @@ fun JellyfinHomeScreen(
         recentlyAddedMoviesByLibrary.containsKey(library.Id)
     }.sortedBy { it.Name } // Sort by name for consistent ordering
     
-    val recentlyReleasedMoviesState = repository?.recentlyReleasedMovies?.collectAsState(initial = emptyList())
+    val recentlyReleasedMoviesState = repository?.recentlyReleasedMovies?.collectAsStateWithLifecycle()
     val recentlyReleasedMovies = recentlyReleasedMoviesState?.value ?: emptyList()
     
-    val recentlyAddedShowsByLibraryState = repository?.recentlyAddedShowsByLibrary?.collectAsState(initial = emptyMap())
+    val recentlyAddedShowsByLibraryState = repository?.recentlyAddedShowsByLibrary?.collectAsStateWithLifecycle()
     val recentlyAddedShowsByLibrary = recentlyAddedShowsByLibraryState?.value ?: emptyMap()
     
-    val recentlyAddedEpisodesByLibraryState = repository?.recentlyAddedEpisodesByLibrary?.collectAsState(initial = emptyMap())
+    val recentlyAddedEpisodesByLibraryState = repository?.recentlyAddedEpisodesByLibrary?.collectAsStateWithLifecycle()
     val recentlyAddedEpisodesByLibrary = recentlyAddedEpisodesByLibraryState?.value ?: emptyMap()
     
     // Get TV show libraries (libraries that have shows or episodes)
@@ -298,16 +301,14 @@ fun JellyfinHomeScreen(
         recentlyAddedShowsByLibrary.containsKey(library.Id) || recentlyAddedEpisodesByLibrary.containsKey(library.Id)
     }.sortedBy { it.Name } // Sort by name for consistent ordering
     
-    val librariesState = repository?.libraries?.collectAsState(initial = emptyList())
+    val librariesState = repository?.libraries?.collectAsStateWithLifecycle()
     val libraries = librariesState?.value ?: emptyList()
     
-    val collectionsState = repository?.collections?.collectAsState(initial = emptyList())
+    val collectionsState = repository?.collections?.collectAsStateWithLifecycle()
     val collections = collectionsState?.value ?: emptyList()
     
-    val libraryItemsState = repository?.libraryItems?.collectAsState(initial = emptyMap())
-    val libraryItems = libraryItemsState?.value ?: emptyMap()
     
-    val collectionItemsState = repository?.collectionItems?.collectAsState(initial = emptyMap())
+    val collectionItemsState = repository?.collectionItems?.collectAsStateWithLifecycle()
     val collectionItems = collectionItemsState?.value ?: emptyMap()
     
     // Note: Unwatched episode counts are now provided directly by Jellyfin API via UserData.UnplayedItemCount
@@ -351,54 +352,16 @@ fun JellyfinHomeScreen(
         }
     }
     
-    LaunchedEffect(repository, config.isConfigured()) {
-        // Only fetch data if properly configured
-        if (config.isConfigured() && repository != null) {
-            // Small delay to allow UI to render first and prevent ANR
-            delay(150)
-            repository.fetchContinueWatching()
-            repository.fetchNextUp()
-            repository.fetchRecentlyAddedMovies()
-            repository.fetchRecentlyReleasedMovies()
-            repository.fetchLibraries()
-            repository.fetchCollections()
-            repository.fetchRecentlyAddedShows()
-            repository.fetchRecentlyAddedEpisodes()
-            repository.fetchLibraries()
-        }
-    }
-    
-    // Refresh all content when the screen becomes visible again
-    // This ensures items appear after watching/partially watching content
-    // Also refresh settings when screen resumes
-    // This is critical when app resumes from memory after device sleep/power up
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                // Refresh settings when screen resumes
-                darkModeEnabled = settings.darkModeEnabled
-                hideShowsWithZeroEpisodes = settings.hideShowsWithZeroEpisodes
-                // Refresh all content when returning to the screen
-                // This fixes issue where only Continue Watching and Next Up show after device resume
-                scope.launch {
-                    repository?.fetchContinueWatching()
-                    repository?.fetchNextUp()
-                    repository?.fetchRecentlyAddedMovies()
-                    repository?.fetchRecentlyReleasedMovies()
-                    repository?.fetchLibraries()
-                    repository?.fetchCollections()
-                    repository?.fetchRecentlyAddedShows()
-                    repository?.fetchRecentlyAddedEpisodes()
-                }
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
+    LaunchedEffect(repository, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+            darkModeEnabled = settings.darkModeEnabled
+            hideShowsWithZeroEpisodes = settings.hideShowsWithZeroEpisodes
+            if (config.isConfigured()) repository?.refreshHome()
+            kotlinx.coroutines.awaitCancellation()
         }
     }
-    
+
     // Auto-refresh: Periodically check for new media and refresh rows if new content is detected
     var autoRefreshEnabled by remember { mutableStateOf(settings.autoRefreshEnabled) }
     var autoRefreshIntervalMinutes by remember { mutableStateOf(settings.autoRefreshIntervalMinutes) }
@@ -407,53 +370,22 @@ fun JellyfinHomeScreen(
     // This ensures Coil re-fetches images that may have failed to load initially
     var imageRefreshKey by remember { mutableStateOf(0L) }
     
-    LaunchedEffect(autoRefreshEnabled, autoRefreshIntervalMinutes, repository) {
+    LaunchedEffect(autoRefreshEnabled, autoRefreshIntervalMinutes, repository, lifecycleOwner) {
         if (autoRefreshEnabled && repository != null) {
-            while (true) {
-                // Wait for the specified interval (convert minutes to milliseconds)
-                delay(autoRefreshIntervalMinutes * 60 * 1000L)
-                
-                // Check if auto-refresh is still enabled (user might have disabled it)
-                autoRefreshEnabled = settings.autoRefreshEnabled
-                autoRefreshIntervalMinutes = settings.autoRefreshIntervalMinutes
-                
-                if (!autoRefreshEnabled) {
-                    break // Exit loop if disabled
-                }
-                
-                // Check for new media and refresh if found (only checks for media already detected by Jellyfin backend)
-                try {
-                    val refreshed = repository.checkForNewMediaAndRefresh()
-                    if (refreshed) {
-                        android.util.Log.d("JellyfinHomeScreen", "Auto-refresh: New media detected, rows refreshed")
-                        // Increment image refresh key to force Coil to reload images
-                        // This fixes issue where new content appears but posters don't load
-                        imageRefreshKey = System.currentTimeMillis()
-                        android.util.Log.d("JellyfinHomeScreen", "Auto-refresh: Image cache invalidated, forcing reload")
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.w("JellyfinHomeScreen", "Auto-refresh: Error checking for new media", e)
+            lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+                while (true) {
+                    delay(autoRefreshIntervalMinutes.coerceAtLeast(1) * 60_000L)
+                    repository.refreshHome(forceMetadata = true)
                 }
             }
         }
     }
     
     // Fetch library items when a library is selected (only on Enter/OK press via onClick, not on focus)
-    LaunchedEffect(selectedLibraryId, repository) {
-        selectedLibraryId?.let { libraryId ->
-            repository?.fetchLibraryItems(libraryId)
-        }
-    }
+
     
     // Fetch collection items for all collections when Collections tab is selected
-    LaunchedEffect(selectedCollectionId, collections, repository) {
-        // When Collections tab is selected (selectedCollectionId == "__COLLECTIONS__"), fetch items for all collections
-        if (selectedCollectionId == "__COLLECTIONS__" && collections.isNotEmpty()) {
-            collections.forEach { collection ->
-                repository?.fetchCollectionItems(collection.Id)
-            }
-        }
-    }
+
     val focusRequester = remember { FocusRequester() }
     
     // Primary scroll states for different views
@@ -480,7 +412,6 @@ fun JellyfinHomeScreen(
     var backgroundChangeJob by remember { mutableStateOf<Job?>(null) }
     
     // Plex-style dynamic background palette
-    val paletteCache = remember { mutableMapOf<String, ArtworkPalette>() }
     var currentArtworkPalette by remember { mutableStateOf<ArtworkPalette?>(null) }
     
     // Set initial highlighted item to first continue watching item or first recently added movie
@@ -506,6 +437,7 @@ fun JellyfinHomeScreen(
                     val details = apiService.getItemDetails(itemId)
                     highlightedItemDetails = details
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     // Silently fail - use basic item info
                     highlightedItemDetails = highlightedItem
                 }
@@ -533,6 +465,7 @@ fun JellyfinHomeScreen(
                         debouncedHighlightedItemDetails = details
                     }
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     // Keep using basic item info on failure
                 }
             }
@@ -583,39 +516,12 @@ fun JellyfinHomeScreen(
             } ?: ""
             
             // Extract palette from the current image URL
-            LaunchedEffect(imageUrl) {
-                if (imageUrl.isNotEmpty()) {
-                    // Check cache first
-                    val cacheKey = highlightedItem?.Id ?: imageUrl
-                    paletteCache[cacheKey]?.let {
-                        currentArtworkPalette = it
-                        return@LaunchedEffect
-                    }
-
-                    withContext(Dispatchers.IO) {
-                        try {
-                            val loader = coil.ImageLoader(context)
-                            val request = ImageRequest.Builder(context)
-                                .data(imageUrl)
-                                .allowHardware(false) // Required for Palette
-                                .build()
-                            
-                            val result = loader.execute(request)
-                            if (result is SuccessResult) {
-                                val bitmap = (result.drawable as? BitmapDrawable)?.bitmap
-                                if (bitmap != null) {
-                                    val palette = PlexPaletteExtractor.extract(context, bitmap)
-                                    withContext(Dispatchers.Main) {
-                                        paletteCache[cacheKey] = palette
-                                        currentArtworkPalette = palette
-                                    }
-                                }
-                            }
-                        } catch (e: Exception) {
-                            Log.e("JellyfinHomeScreen", "Error extracting palette", e)
-                        }
-                    }
-                } else {
+            LaunchedEffect(imageUrl, apiService) {
+                try {
+                    currentArtworkPalette = com.flex.elefin.ui.ArtworkPaletteLoader.load(context, imageUrl, apiService)
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
                     currentArtworkPalette = null
                 }
             }
@@ -804,17 +710,16 @@ fun JellyfinHomeScreen(
                 
                 // Refresh/Sort button - to the right of search button
                 // Shows refresh button on home screen, sort button when library is selected
-                val infiniteTransition = rememberInfiniteTransition(label = "refresh_rotation")
-                val rotationAngle by infiniteTransition.animateFloat(
-                    initialValue = 0f,
-                    targetValue = 360f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(1000, delayMillis = 0),
-                        repeatMode = androidx.compose.animation.core.RepeatMode.Restart
-                    ),
-                    label = "refresh_rotation_angle"
-                )
-                
+                val rotationAngle = if (isRefreshing && !disableUIAnimations.value) {
+                    val transition = rememberInfiniteTransition(label = "refresh_rotation")
+                    val angle by transition.animateFloat(
+                        initialValue = 0f, targetValue = 360f,
+                        animationSpec = infiniteRepeatable(animation = tween(1000), repeatMode = androidx.compose.animation.core.RepeatMode.Restart),
+                        label = "refresh_rotation_angle"
+                    )
+                    angle
+                } else 0f
+
                 val isLibrarySelected = selectedLibraryId != null
                 
                 IconButton(
@@ -839,11 +744,10 @@ fun JellyfinHomeScreen(
                                         // Trigger server-side library scan and refresh all media rows
                                         repository.triggerLibraryScanAndRefresh()
                                         
-                                        // Also refresh libraries in case new ones were added
-                                        repository.fetchLibraries()
                                         
                                         Log.d("JellyfinHomeScreen", "Manual refresh completed")
                                     } catch (e: Exception) {
+                                        if (e is kotlinx.coroutines.CancellationException) throw e
                                         Log.e("JellyfinHomeScreen", "Manual refresh error", e)
                                     } finally {
                                         isRefreshing = false
@@ -1134,357 +1038,22 @@ fun JellyfinHomeScreen(
             
             // Show library grid if a library is selected
             if (selectedLibraryId != null) {
-                // No spacer needed - grid starts immediately after tab row
                 val libraryId = selectedLibraryId!!
-                val unsortedItems = libraryItems[libraryId] ?: emptyList()
-                
-                // Sort items based on selected sort type, then filter if needed
-                val items = remember(unsortedItems, sortType, hideShowsWithZeroEpisodes) {
-                    val sortedItems = when (sortType) {
-                        SortType.Alphabetically -> unsortedItems.sortedBy { it.Name.lowercase() }
-                        SortType.DateAdded -> {
-                            // Sort by DateCreated (most recent first)
-                            unsortedItems.sortedByDescending { 
-                                it.DateCreated?.let { dateStr ->
-                                    try {
-                                        // Try ISO format first (e.g., "2024-01-15T12:00:00Z")
-                                        val formats = listOf(
-                                            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US),
-                                            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US),
-                                            SimpleDateFormat("yyyy-MM-dd", Locale.US)
-                                        )
-                                        formats.firstNotNullOfOrNull { format ->
-                                            try {
-                                                format.parse(dateStr)?.time
-                                            } catch (e: Exception) {
-                                                null
-                                            }
-                                        } ?: Long.MIN_VALUE
-                                    } catch (e: Exception) {
-                                        Long.MIN_VALUE
-                                    }
-                                } ?: Long.MIN_VALUE
-                            }
-                        }
-                        SortType.DateReleased -> {
-                            // Sort by PremiereDate (most recent first)
-                            unsortedItems.sortedByDescending { 
-                                it.PremiereDate?.let { dateStr ->
-                                    try {
-                                        // Try ISO format first (e.g., "2024-01-15T12:00:00Z")
-                                        val formats = listOf(
-                                            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US),
-                                            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US),
-                                            SimpleDateFormat("yyyy-MM-dd", Locale.US)
-                                        )
-                                        formats.firstNotNullOfOrNull { format ->
-                                            try {
-                                                format.parse(dateStr)?.time
-                                            } catch (e: Exception) {
-                                                null
-                                            }
-                                        } ?: Long.MIN_VALUE
-                                    } catch (e: Exception) {
-                                        Long.MIN_VALUE
-                                    }
-                                } ?: Long.MIN_VALUE
-                            }
-                        }
+                val library = libraries.find { it.Id == libraryId }
+                PagedLibraryGrid(
+                    api = apiService, libraryId = libraryId,
+                    types = when (library?.CollectionType) { "tvshows" -> "Series"; "movies" -> "Movie"; else -> "Movie,Series" },
+                    sort = sortType, hideEmptySeries = hideShowsWithZeroEpisodes,
+                    lowPowerMode = lowPowerMode.value, simpleCards = useSimpleCards.value,
+                    googleTvCards = useGoogleTvCards.value, refreshKey = imageRefreshKey,
+                    modifier = Modifier.fillMaxSize().padding(top = 86.dp, start = 30.dp, end = 18.dp),
+                    onItemClick = onItemClick,
+                    onItemFocused = { item ->
+                        instantHighlightedItem = item
+                        backgroundChangeJob?.cancel()
+                        backgroundChangeJob = scope.launch { delay(1000); highlightedItem = item }
                     }
-                    
-                    // Filter shows with zero episodes if setting is enabled
-                    if (hideShowsWithZeroEpisodes) {
-                        sortedItems.filter { item ->
-                            // Keep non-Series items, or Series items with episodes
-                            // Use RecursiveItemCount (total episodes) if available, fall back to ChildCount (seasons)
-                            if (item.Type != "Series") {
-                                true
-                            } else {
-                                val episodeCount = item.RecursiveItemCount ?: item.ChildCount ?: 0
-                                episodeCount > 0
-                            }
-                        }
-                    } else {
-                        sortedItems
-                    }
-                }
-                val context = LocalContext.current
-                val imageLoader = context.imageLoader
-                
-                // Preload images for items that are about to come into view
-                LaunchedEffect(items, apiService, selectedLibraryId, preloadLibraryImages, cacheLibraryImages, reducePosterResolution) {
-                    if (preloadLibraryImages && apiService != null && items.isNotEmpty()) {
-                        // Preload images for the first 6 rows (36 items) - more aggressive preloading
-                        val preloadCount = minOf(36, items.size) // First 6 rows (6 columns * 6 rows)
-                        
-                        items.take(preloadCount).forEach { item ->
-                            // Use reduced resolution (300x450) or standard resolution (400x600) based on setting
-                            val imageUrl = if (reducePosterResolution) {
-                                apiService.getImageUrl(item.Id, "Primary", null, maxWidth = 300, maxHeight = 450, quality = 80)
-                            } else {
-                                apiService.getImageUrl(item.Id, "Primary", null, maxWidth = 400, maxHeight = 600, quality = 85)
-                            }
-                            if (imageUrl.isNotEmpty()) {
-                                try {
-                                    val request = ImageRequest.Builder(context)
-                                        .data(imageUrl)
-                                        .headers(apiService.getImageRequestHeaders())
-                                        .size(300) // Hint to Coil about target size
-                                        .memoryCachePolicy(if (cacheLibraryImages) CachePolicy.ENABLED else CachePolicy.DISABLED)
-                                        .diskCachePolicy(if (cacheLibraryImages) CachePolicy.ENABLED else CachePolicy.DISABLED)
-                                        .build()
-                                    imageLoader.enqueue(request)
-                                } catch (e: Exception) {
-                                    // Silently fail preloading
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // Preload images as user scrolls - more aggressive (5 rows ahead)
-                LaunchedEffect(libraryLazyListState.firstVisibleItemIndex, items, apiService, selectedLibraryId, preloadLibraryImages, cacheLibraryImages, reducePosterResolution) {
-                    if (preloadLibraryImages && apiService != null && items.isNotEmpty()) {
-                        val firstVisible = libraryLazyListState.firstVisibleItemIndex
-                        val columns = 6
-                        val preloadStart = (firstVisible + 5) * columns // Start preloading 5 rows ahead
-                        val preloadEnd = minOf(preloadStart + (5 * columns), items.size) // Preload 5 rows
-                        
-                        if (preloadStart < items.size && preloadEnd > preloadStart) {
-                            items.subList(preloadStart, preloadEnd).forEach { item ->
-                                // Use reduced resolution (300x450) or standard resolution (400x600) based on setting
-                                val imageUrl = if (reducePosterResolution) {
-                                    apiService.getImageUrl(item.Id, "Primary", null, maxWidth = 300, maxHeight = 450, quality = 80)
-                                } else {
-                                    apiService.getImageUrl(item.Id, "Primary", null, maxWidth = 400, maxHeight = 600, quality = 85)
-                                }
-                                if (imageUrl.isNotEmpty()) {
-                                    try {
-                                        val request = ImageRequest.Builder(context)
-                                            .data(imageUrl)
-                                            .headers(apiService.getImageRequestHeaders())
-                                            .size(300) // Hint to Coil about target size
-                                            .memoryCachePolicy(if (cacheLibraryImages) CachePolicy.ENABLED else CachePolicy.DISABLED)
-                                            .diskCachePolicy(if (cacheLibraryImages) CachePolicy.ENABLED else CachePolicy.DISABLED)
-                                            .build()
-                                        imageLoader.enqueue(request)
-                                    } catch (e: Exception) {
-                                        // Silently fail preloading
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // Container for library grid - positioned below tab row
-                Spacer(modifier = Modifier.height(86.dp)) // Add space below tab row (reduced by 40% from 144: 144 * 0.6 = 86)
-                
-                if (items.isNotEmpty()) {
-                    // A-Z Index state - only show when sorted alphabetically AND not in low power mode
-                    // The A-Z index with animations can cause scrolling lag on lower-end devices
-                    val showAlphabetIndex = sortType == SortType.Alphabetically && !lowPowerMode.value
-                    val columns = 6
-                    val letterIndexMap = remember(items, columns) {
-                        if (showAlphabetIndex) buildLetterIndexMap(items, columns) else emptyMap()
-                    }
-                    val availableLetters = remember(letterIndexMap) { letterIndexMap.keys }
-                    var selectedLetter by remember { mutableStateOf<Char?>(null) }
-                    var showLetterOverlay by remember { mutableStateOf(false) }
-                    
-                    // Auto-hide letter overlay after delay
-                    LaunchedEffect(selectedLetter) {
-                        if (selectedLetter != null) {
-                            showLetterOverlay = true
-                            delay(800)
-                            showLetterOverlay = false
-                        }
-                    }
-                    
-                    // Scroll to letter when selected
-                    LaunchedEffect(selectedLetter, letterIndexMap) {
-                        if (selectedLetter != null && letterIndexMap.containsKey(selectedLetter)) {
-                            val targetRow = letterIndexMap[selectedLetter] ?: return@LaunchedEffect
-                            libraryLazyListState.animateScrollToItem(targetRow)
-                        }
-                    }
-                    
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            // A-Z Index Bar on the left (only when sorted alphabetically)
-                            if (showAlphabetIndex) {
-                                Box(
-                                    modifier = Modifier
-                                        .width(48.dp)
-                                        .fillMaxHeight()
-                                        .padding(start = 8.dp, top = 24.dp, bottom = 24.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    AlphabetIndexBar(
-                                        availableLetters = availableLetters,
-                                        selectedLetter = selectedLetter,
-                                        onLetterFocused = { letter ->
-                                            selectedLetter = letter
-                                        },
-                                        onLetterSelected = { letter ->
-                                            selectedLetter = letter
-                                        }
-                                    )
-                                }
-                            }
-                            
-                            // Main content area
-                            androidx.tv.material3.Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .then(
-                                        if (debugOutlinesEnabled) {
-                                            Modifier.border(3.dp, Color.Green)
-                                        } else {
-                                            Modifier
-                                        }
-                                    ),
-                                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-                                colors = androidx.tv.material3.SurfaceDefaults.colors(
-                                    containerColor = Color.Transparent
-                                )
-                            ) {
-                                LazyColumn(
-                                    state = libraryLazyListState,
-                                    contentPadding = PaddingValues(bottom = 20.dp * 1.15f, top = 24.dp),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(start = if (showAlphabetIndex) 8.dp else 54.dp, end = 38.dp)
-                                        .then(
-                                            if (debugOutlinesEnabled) {
-                                                Modifier.border(3.dp, Color.Blue)
-                                            } else {
-                                                Modifier
-                                            }
-                                        )
-                                ) {
-                                    // Grid layout with 6 columns - integrate directly into LazyColumn
-                                    items(
-                                        items = items.chunked(columns),
-                                        key = { rowItems -> rowItems.firstOrNull()?.Id ?: "" },
-                                        contentType = { "library_row" }
-                                    ) { rowItems ->
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 10.dp),
-                                            horizontalArrangement = Arrangement.Center
-                                        ) {
-                                            // Add spacer at the start for equal spacing
-                                            Spacer(modifier = Modifier.weight(1f))
-                                            
-                                            // Cards with spacing between them
-                                            rowItems.forEachIndexed { index, item ->
-                                                if (index > 0) {
-                                                    Spacer(modifier = Modifier.width(20.dp))
-                                                }
-                                                Column(
-                                                    modifier = Modifier.width(105.dp),
-                                                    horizontalAlignment = Alignment.CenterHorizontally
-                                                ) {
-                                                    JellyfinHorizontalCard(
-                                                        item = item,
-                                                        apiService = apiService,
-                                                        onClick = {
-                                                            // Library item click - pass fromLibrary flag
-                                                            val intent = when (item.Type) {
-                                                                "Series" -> {
-                                                                    com.flex.elefin.SeriesDetailsActivity.createIntent(
-                                                                        context = context,
-                                                                        item = item,
-                                                                        fromLibrary = true
-                                                                    )
-                                                                }
-                                                                else -> {
-                                                                    // Movies and other types
-                                                                    com.flex.elefin.MovieDetailsActivity.createIntent(
-                                                                        context = context,
-                                                                        item = item,
-                                                                        fromLibrary = true
-                                                                    )
-                                                                }
-                                                            }
-                                                            context.startActivity(intent)
-                                                        },
-                                                        onFocusChanged = { isFocused ->
-                                                            if (isFocused) {
-                                                                // Update metadata text immediately
-                                                                instantHighlightedItem = item
-                                                                originalEpisodeItem = null
-                                                                
-                                                                // Cancel any pending background change
-                                                                backgroundChangeJob?.cancel()
-                                                                
-                                                                // Debounce: wait 1 second before changing background
-                                                                backgroundChangeJob = scope.launch {
-                                                                    delay(1300)
-                                                                    highlightedItem = item
-                                                                }
-                                                            }
-                                                        },
-                                                        enableCaching = cacheLibraryImages,
-                                                        reducePosterResolution = reducePosterResolution,
-                                                        unwatchedEpisodeCount = if (item.Type == "Episode") item.UserData?.UnplayedItemCount else null,
-                                                        disableAnimations = disableUIAnimations.value,
-                                                        useSimpleCards = useSimpleCards.value,
-                                                        useGoogleTvCards = useGoogleTvCards.value,
-                                                        lowPowerMode = lowPowerMode.value,
-                                                        imageRefreshKey = imageRefreshKey
-                                                    )
-                                                    // Item name below the card - skip in low power mode for smoother scrolling
-                                                    if (!lowPowerMode.value) {
-                                                        Text(
-                                                            text = item.Name ?: "",
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            color = Color.White.copy(alpha = 0.9f),
-                                                            maxLines = 1,
-                                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                                            modifier = Modifier
-                                                                .padding(top = 6.dp)
-                                                                .fillMaxWidth()
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                            
-                                            // Fill remaining space if row has fewer than columns items
-                                            if (rowItems.size < columns) {
-                                                repeat(columns - rowItems.size) {
-                                                    Spacer(modifier = Modifier.width(105.dp + 20.dp)) // Width of card + spacing
-                                                }
-                                            }
-                                            
-                                            // Add spacer at the end for equal spacing
-                                            Spacer(modifier = Modifier.weight(1f))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Letter overlay (shown briefly when navigating A-Z)
-                        if (showAlphabetIndex) {
-                            LetterOverlay(
-                                letter = selectedLetter,
-                                visible = showLetterOverlay
-                            )
-                        }
-                    }
-                }
-                // Loading state removed - content loads progressively without blocking UI
+                )
             }
             
             // Show collections as rows (like library screens) when Collections tab is selected
@@ -1511,11 +1080,14 @@ fun JellyfinHomeScreen(
                         val items = collectionItems[collection.Id] ?: emptyList()
                         
                         // Only show collections that have items
-                        if (items.isNotEmpty()) {
+
                             item(
                                 key = collection.Id,
                                 contentType = "collection_row"
                             ) {
+                                LaunchedEffect(collection.Id, repository) {
+                                    if (items.isEmpty()) repository?.fetchCollectionItems(collection.Id)
+                                }
                                 Column(
                                     modifier = Modifier
                                         .padding(top = if (index == 0) 24.dp else 0.dp)
@@ -1598,10 +1170,19 @@ fun JellyfinHomeScreen(
                                                 imageRefreshKey = imageRefreshKey
                                             )
                                         }
-                                    }
+
+                                        if (items.size >= settings.rowCardCount) {
+                                            item(key = "view_all") {
+                                                Button(onClick = {
+                                                    selectedCollectionId = null
+                                                    selectedLibraryId = collection.Id
+                                                }) { Text("查看全部") }
+                                            }
+                                        }
+}
                                 }
                             }
-                        }
+
                     }
                 }
             }
@@ -2147,17 +1728,13 @@ fun JellyfinHomeScreen(
                 val rowCardCountChanged = settings.rowCardCount != rowCardCountWhenSettingsOpened
                 if (rowCardCountChanged) {
                     scope.launch {
-                        repository?.fetchContinueWatching()
-                        repository?.fetchNextUp()
-                        repository?.fetchRecentlyAddedMovies()
-                        repository?.fetchRecentlyAddedShows()
-                        repository?.fetchRecentlyAddedEpisodes()
+                        repository?.refreshHome(forceMetadata = true)
                         
                         // Also refresh library items if one is selected
                         if (selectedLibraryId != null) {
                             val library = libraries.find { it.Id == selectedLibraryId }
                             if (library != null) {
-                                repository?.fetchLibraryItems(selectedLibraryId!!)
+                                imageRefreshKey++
                             }
                         }
                     }
@@ -2223,17 +1800,13 @@ fun JellyfinHomeScreen(
                             val rowCardCountChanged = settings.rowCardCount != rowCardCountWhenSettingsOpened
                             if (rowCardCountChanged) {
                                 scope.launch {
-                                    repository?.fetchContinueWatching()
-                                    repository?.fetchNextUp()
-                                    repository?.fetchRecentlyAddedMovies()
-                                    repository?.fetchRecentlyAddedShows()
-                                    repository?.fetchRecentlyAddedEpisodes()
+                                    repository?.refreshHome(forceMetadata = true)
                                     
                                     // Also refresh library items if one is selected
                                     if (selectedLibraryId != null) {
                                         val library = libraries.find { it.Id == selectedLibraryId }
                                         if (library != null) {
-                                            repository?.fetchLibraryItems(selectedLibraryId!!)
+                                            imageRefreshKey++
                                         }
                                     }
                                 }
@@ -2292,6 +1865,7 @@ fun JellyfinHomeScreen(
                                     )
                                 }
                             } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e
                                 android.util.Log.e("JellyfinHomeScreen", "Error creating Jellyseerr API service", e)
                                 null
                             }

@@ -183,6 +183,7 @@ fun MovieDetailsScreen(
                     // Ignore cancellation exceptions - they're expected when composition changes
                     throw e // Re-throw to properly handle cancellation
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("MovieDetailsScreen", "获取影片详情失败", e)
                     isLoading = false
                 }
@@ -543,6 +544,7 @@ fun BottomContainer(
                     similarMovies = movies
                     isLoadingSimilar = false
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("MovieDetails", "Error fetching similar movies", e)
                     isLoadingSimilar = false
                 }
@@ -561,6 +563,7 @@ fun BottomContainer(
                     moviesWithCast = movies
                     isLoadingCastMovies = false
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("MovieDetails", "Error fetching movies with cast member", e)
                     isLoadingCastMovies = false
                 }
@@ -1022,6 +1025,7 @@ fun SubtitleSelectionDialog(
                     // Normal cancellation when composable leaves composition - don't log as error
                     throw e // Re-throw to respect cancellation
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("SubtitleDialog", "获取影片详情失败", e)
                     isLoadingSubtitles = false
                 }
@@ -1304,6 +1308,7 @@ fun SubtitleSelectionDialog(
                             language = language
                         )
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         Log.e("SubtitleDialog", "搜索字幕失败", e)
                         searchResults = emptyList()
                     } finally {
@@ -1360,6 +1365,7 @@ fun SubtitleSelectionDialog(
                             android.widget.Toast.makeText(context, errorMsg, android.widget.Toast.LENGTH_LONG).show()
                         }
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         Log.e("SubtitleDialog", "下载字幕失败", e)
                         android.widget.Toast.makeText(context, "下载失败：${e.message}", android.widget.Toast.LENGTH_LONG).show()
                     } finally {
@@ -1406,6 +1412,7 @@ fun AudioSelectionDialog(
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("AudioDialog", "获取影片详情失败", e)
                     isLoadingAudio = false
                 }
@@ -1619,10 +1626,13 @@ fun ActionButtonsRow(
                                  if (iso639Code == audioLang && audioLang.length == 3) {
                                      // Fallback for some codes if Locale constructor didn't parse it as iso3
                                      iso639Code = java.util.Locale.getAvailableLocales()
-                                         .find { try { it.getISO3Language() == audioLang } catch (e: Exception) { false } }?.language ?: audioLang.take(2)
+                                         .find { try { it.getISO3Language() == audioLang } catch (e: Exception) {
+                                             if (e is kotlinx.coroutines.CancellationException) throw e
+ false } }?.language ?: audioLang.take(2)
                                  }
                                  Log.d("ActionButtonsRow", "Detected audio language: $audioLang -> ISO-639-1: $iso639Code")
                              } catch (e: Exception) {
+                                 if (e is kotlinx.coroutines.CancellationException) throw e
                                   Log.w("ActionButtonsRow", "Could not parse language: $audioLang")
                              }
                          }
@@ -1650,6 +1660,7 @@ fun ActionButtonsRow(
                          }
                      }
                  } catch (e: Exception) {
+                     if (e is kotlinx.coroutines.CancellationException) throw e
                      Log.e("ActionButtonsRow", "Error fetching TMDB trailer", e)
                  }
              } else {
@@ -2107,6 +2118,7 @@ fun ActionButtonsRow(
                                 android.util.Log.w("MovieDetails", "Failed to mark item as $action")
                             }
                         } catch (e: Exception) {
+                            if (e is kotlinx.coroutines.CancellationException) throw e
                             val action = if (isAlreadyWatched) "unwatched" else "watched"
                             android.util.Log.e("MovieDetails", "Error marking item as $action", e)
                         }
@@ -2207,6 +2219,7 @@ fun ActionButtonsRow(
                                 )
                             }
                         } catch (e: Exception) {
+                            if (e is kotlinx.coroutines.CancellationException) throw e
                             android.util.Log.e("MovieDetails", "Error pre-downloading subtitle", e)
                         }
                     }

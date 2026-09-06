@@ -216,6 +216,7 @@ fun SeriesDetailsScreen(
                     // Ignore cancellation exceptions - they're expected when composition changes
                     throw e // Re-throw to properly handle cancellation
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("SeriesDetailsScreen", "Error fetching series details", e)
                     isLoadingSeasons = false
                     isLoadingEpisodes = false
@@ -240,6 +241,7 @@ fun SeriesDetailsScreen(
                     // Ignore cancellation exceptions - they're expected when composition changes
                     throw e // Re-throw to properly handle cancellation
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("SeriesDetailsScreen", "Error fetching episodes", e)
                     isLoadingEpisodes = false
                 }
@@ -306,6 +308,7 @@ fun SeriesDetailsScreen(
                             }
                         }
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         Log.e("SeriesDetailsScreen", "Error finding initial episode", e)
                         withContext(Dispatchers.Main) {
                             hasPerformedInitialFocus = true // Mark as done on error to prevent retrying
@@ -326,6 +329,7 @@ fun SeriesDetailsScreen(
                 firstSeasonFocusRequester.requestFocus()
                 Log.d("SeriesDetailsScreen", "Focused on Season 1 button (no initial episode)")
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.w("SeriesDetailsScreen", "Could not focus on Season 1 button: ${e.message}")
             }
         }
@@ -376,6 +380,7 @@ fun SeriesDetailsScreen(
                         }
                     }
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("SeriesDetails", "Error refreshing episodes after marking as watched", e)
                 }
             }
@@ -1075,6 +1080,7 @@ fun SeriesBottomContainer(
                             Log.w("SeriesBottomContainer", "Failed to request focus on initial episode after $maxRetries retries: ${e.message}")
                         }
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         // Catch any other exceptions
                         Log.e("SeriesBottomContainer", "Unexpected error requesting focus: ${e.message}", e)
                         break
@@ -1232,6 +1238,7 @@ fun SeriesBottomContainer(
                                                         lastFocusedEpisodeRequester[episodeToFocus.Id]?.requestFocus()
                                                         true
                                                     } catch (e: Exception) {
+                                                        if (e is kotlinx.coroutines.CancellationException) throw e
                                                         Log.w("SeriesBottomContainer", "Failed to restore focus to episode: ${e.message}")
                                                         false
                                                     }
@@ -1769,6 +1776,7 @@ fun EpisodeMetadataRow(
                     // Normal cancellation when composable leaves composition - don't log as error
                     throw e // Re-throw to respect cancellation
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("EpisodeMetadataRow", "Error fetching episode details", e)
                     // Use episode prop directly (has latest UserData)
                     episodeDetails = episode
@@ -1942,6 +1950,7 @@ fun EpisodeActionButtonsRow(
                 try {
                     episodeDetails = apiService.getItemDetails(episode.Id)
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("EpisodeActionButtons", "Error fetching episode details", e)
                 }
             }
@@ -1990,9 +1999,12 @@ fun EpisodeActionButtonsRow(
                                   iso639Code = java.util.Locale(audioLang).language
                                   if (iso639Code == audioLang && audioLang.length == 3) {
                                       iso639Code = java.util.Locale.getAvailableLocales()
-                                          .find { try { it.getISO3Language() == audioLang } catch (e: Exception) { false } }?.language ?: audioLang.take(2)
+                                          .find { try { it.getISO3Language() == audioLang } catch (e: Exception) {
+                                              if (e is kotlinx.coroutines.CancellationException) throw e
+ false } }?.language ?: audioLang.take(2)
                                   }
                               } catch (e: Exception) {
+                                  if (e is kotlinx.coroutines.CancellationException) throw e
                                   Log.w("EpisodeActionButtons", "Could not parse language: $audioLang")
                               }
                           }
@@ -2014,6 +2026,7 @@ fun EpisodeActionButtonsRow(
                           }
                       }
                   } catch (e: Exception) {
+                      if (e is kotlinx.coroutines.CancellationException) throw e
                       Log.e("EpisodeActionButtons", "Error fetching TMDB trailer", e)
                   }
              }
@@ -2371,6 +2384,7 @@ fun EpisodeActionButtonsRow(
                                     Log.w("SeriesDetails", "Failed to mark episode as $action")
                                 }
                             } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e
                                 val action = if (isAlreadyWatched) "unwatched" else "watched"
                                 Log.e("SeriesDetails", "Error marking episode as $action", e)
                             }
@@ -2472,6 +2486,7 @@ fun EpisodeActionButtonsRow(
                                 )
                             }
                         } catch (e: Exception) {
+                            if (e is kotlinx.coroutines.CancellationException) throw e
                             android.util.Log.e("SeriesDetails", "Error pre-downloading subtitle", e)
                         }
                     }
@@ -2894,6 +2909,7 @@ fun EpisodeSubtitleSelectionDialog(
                     // Normal cancellation when composable leaves composition - don't log as error
                     throw e // Re-throw to respect cancellation
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("EpisodeSubtitleDialog", "获取影片详情失败", e)
                     isLoadingSubtitles = false
                 }
@@ -3201,6 +3217,7 @@ fun EpisodeSubtitleSelectionDialog(
                             episodeNumber = item.IndexNumber
                         )
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         Log.e("EpisodeSubtitleDialog", "搜索字幕失败", e)
                         searchResults = emptyList()
                     } finally {
@@ -3245,6 +3262,7 @@ fun EpisodeSubtitleSelectionDialog(
                             android.widget.Toast.makeText(context, errorMsg, android.widget.Toast.LENGTH_LONG).show()
                         }
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         Log.e("EpisodeSubtitleDialog", "下载字幕失败", e)
                         android.widget.Toast.makeText(context, "下载失败：${e.message}", android.widget.Toast.LENGTH_LONG).show()
                     } finally {
@@ -3291,6 +3309,7 @@ fun EpisodeAudioSelectionDialog(
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("EpisodeAudioDialog", "获取影片详情失败", e)
                     isLoadingAudio = false
                 }

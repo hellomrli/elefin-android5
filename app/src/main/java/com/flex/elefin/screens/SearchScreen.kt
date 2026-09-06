@@ -473,6 +473,7 @@ private suspend fun performSearch(
                             allResults.addAll(results)
                         }
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         android.util.Log.e("SearchScreen", "Error searching Jellyfin", e)
                     }
                 }
@@ -490,7 +491,7 @@ private suspend fun performSearch(
                                 // Ideally we check against jellyfin results, but we are running in parallel.
                                 // We'll deduplicate after.
                                 
-                                val mediaType = if (result.mediaType == "tv") "剧集" else "电影"
+                                val mediaType = com.flex.elefin.jellyfin.MediaTypes.fromDiscovery(result.mediaType) ?: return@mapNotNull null
                                 val posterUrl = com.flex.elefin.jellyseerr.JellyseerrImageUrl.poster(result.posterPath)
                                 
                                 // Create a JellyfinItem structure for the Jellyseerr result
@@ -511,6 +512,7 @@ private suspend fun performSearch(
                             }
                         }
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         android.util.Log.e("SearchScreen", "Error searching Jellyseerr", e)
                     }
                 }
@@ -538,6 +540,7 @@ private suspend fun performSearch(
             
             onResults(finalResults)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("SearchScreen", "Error performing search", e)
             onResults(emptyList())
         }

@@ -1,6 +1,7 @@
 package com.flex.elefin
 
 import android.app.Application
+import kotlinx.coroutines.launch
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
@@ -15,28 +16,28 @@ class ElefinApplication : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         NewPipe.init(ElefinDownloader())
+        com.flex.elefin.player.PlaybackReports.initialize(this)
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
+            // The old non-reclaimable cache is disposable, not user data.
+            filesDir.resolve("image_cache").deleteRecursively()
+            com.flex.elefin.player.DevicePlaybackPolicy.initialize(this@ElefinApplication)
+        }
     }
 
     override fun newImageLoader(): ImageLoader {
-        // The manifest sets largeHeap, so maxSizePercent is a share of largeMemoryClass.
-        // On a 1 GB Android 5 box that is roughly 256 MB, so the old 0.4 handed ~100 MB
-        // to bitmaps alone - on top of the player's media buffer. Scale it to the device.
-        val memoryFraction = if (hasTightMemory()) 0.15 else 0.25
+        val imageMemoryBytes = (if (hasTightMemory()) 20L else 48L) * 1024 * 1024
+        val diskBytes = (cacheDir.usableSpace / 50).coerceIn(32L * 1024 * 1024, 192L * 1024 * 1024)
 
         return ImageLoader.Builder(this)
             .memoryCache {
                 MemoryCache.Builder(this)
-                    .maxSizePercent(memoryFraction)
+                    .maxSizeBytes(imageMemoryBytes.toInt())
                     .build()
             }
             .diskCache {
                 DiskCache.Builder()
-                    // Use filesDir instead of cacheDir for better persistence across restarts
-                    // filesDir is less likely to be cleared by the system
-                    .directory(filesDir.resolve("image_cache"))
-                    // Increased to 5% of available disk space (was 2%)
-                    // This gives more room for caching while still being reasonable
-                    .maxSizePercent(0.05)
+                    .directory(cacheDir.resolve("image_cache"))
+                    .maxSizeBytes(diskBytes)
                     .build()
             }
             .respectCacheHeaders(false) // Always cache images regardless of HTTP headers

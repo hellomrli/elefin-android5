@@ -1,6 +1,13 @@
 package com.flex.elefin.jellyfin
 
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,8 +53,6 @@ class JellyfinRepository(
     private val _collections = MutableStateFlow<List<JellyfinItem>>(emptyList())
     val collections: StateFlow<List<JellyfinItem>> = _collections.asStateFlow()
 
-    private val _libraryItems = MutableStateFlow<Map<String, List<JellyfinItem>>>(emptyMap())
-    val libraryItems: StateFlow<Map<String, List<JellyfinItem>>> = _libraryItems.asStateFlow()
     
     private val _collectionItems = MutableStateFlow<Map<String, List<JellyfinItem>>>(emptyMap())
     val collectionItems: StateFlow<Map<String, List<JellyfinItem>>> = _collectionItems.asStateFlow()
@@ -57,6 +62,36 @@ class JellyfinRepository(
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    private val refreshMutex = Mutex()
+    private var refreshVersion = 0L
+    private var metadataRefreshedAt = 0L
+
+    suspend fun refreshHome(forceMetadata: Boolean = false) {
+        val versionAtRequest = refreshVersion
+        refreshMutex.withLock {
+            if (refreshVersion != versionAtRequest && !forceMetadata) return
+            val refreshMetadata = forceMetadata || _libraries.value.isEmpty() ||
+                System.currentTimeMillis() - metadataRefreshedAt >= 5 * 60_000L
+            if (refreshMetadata) fetchLibraries()
+            com.flex.elefin.player.PlaybackReports.awaitPendingReports()
+            val tasks: List<suspend () -> Unit> = buildList {
+                add { fetchContinueWatching() }
+                add { fetchNextUp() }
+                if (refreshMetadata) {
+                    add { fetchCollections() }
+                    add { fetchRecentlyAddedMovies() }
+                    add { fetchRecentlyReleasedMovies() }
+                    add { fetchRecentlyAddedShows() }
+                    add { fetchRecentlyAddedEpisodes() }
+                }
+            }
+            val permits = Semaphore(3)
+            coroutineScope { tasks.map { task -> async { permits.withPermit { task() } } }.awaitAll() }
+            if (refreshMetadata) metadataRefreshedAt = System.currentTimeMillis()
+            refreshVersion++
+        }
+    }
 
     suspend fun fetchContinueWatching() {
         _isLoading.value = true
@@ -68,6 +103,7 @@ class JellyfinRepository(
                 _error.value = "No continue watching items found"
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             _error.value = "Error: ${e.message ?: e.javaClass.simpleName}"
         } finally {
@@ -80,6 +116,7 @@ class JellyfinRepository(
             val items = apiService.getNextUp(limit = settings.rowCardCount)
             _nextUpItems.value = items
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             _error.value = "fetchNextUp: ${e.message ?: e.javaClass.simpleName}"
             println("Error fetching next up items: ${e.message}")
@@ -98,6 +135,7 @@ class JellyfinRepository(
                     }
                     _libraries.value
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
                 }
             } else {
@@ -129,6 +167,7 @@ class JellyfinRepository(
                         }
                     }
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     // Log but continue with other libraries
                     android.util.Log.w("JellyfinRepository", "Error fetching movies from library ${library.Name}: ${e.message}")
                 }
@@ -145,6 +184,7 @@ class JellyfinRepository(
             
             _recentlyAddedMovies.value = sortedItems
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             _error.value = "fetchRecentlyAddedMovies: ${e.message ?: e.javaClass.simpleName}"
             println("Error fetching recently added movies: ${e.message}")
@@ -168,6 +208,7 @@ class JellyfinRepository(
                     }
                     _libraries.value
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
                 }
             } else {
@@ -195,6 +236,7 @@ class JellyfinRepository(
                         }
                     }
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     // Log but continue with other libraries
                     android.util.Log.w("JellyfinRepository", "Error fetching released movies from library ${library.Name}: ${e.message}")
                 }
@@ -207,6 +249,7 @@ class JellyfinRepository(
             
             _recentlyReleasedMovies.value = sortedItems
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             _error.value = "fetchRecentlyReleasedMovies: ${e.message ?: e.javaClass.simpleName}"
             println("Error fetching recently released movies: ${e.message}")
@@ -225,6 +268,7 @@ class JellyfinRepository(
                     }
                     _libraries.value
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
                 }
             } else {
@@ -253,6 +297,7 @@ class JellyfinRepository(
                         }
                     }
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     // Log but continue with other libraries
                     android.util.Log.w("JellyfinRepository", "Error fetching shows from library ${library.Name}: ${e.message}")
                 }
@@ -268,6 +313,7 @@ class JellyfinRepository(
             
             _recentlyAddedShows.value = sortedItems
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             _error.value = "fetchRecentlyAddedShows: ${e.message ?: e.javaClass.simpleName}"
             println("Error fetching recently added shows: ${e.message}")
@@ -286,6 +332,7 @@ class JellyfinRepository(
                     }
                     _libraries.value
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
                 }
             } else {
@@ -314,6 +361,7 @@ class JellyfinRepository(
                         }
                     }
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     // Log but continue with other libraries
                     android.util.Log.w("JellyfinRepository", "Error fetching episodes from library ${library.Name}: ${e.message}")
                 }
@@ -329,6 +377,7 @@ class JellyfinRepository(
             
             _recentlyAddedEpisodes.value = sortedItems
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             _error.value = "fetchRecentlyAddedEpisodes: ${e.message ?: e.javaClass.simpleName}"
             println("Error fetching recently added episodes: ${e.message}")
@@ -344,6 +393,7 @@ class JellyfinRepository(
                 it.Name.equals("Live TV", ignoreCase = true)
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             _error.value = "fetchLibraries: ${e.message ?: e.javaClass.simpleName}"
             println("Error fetching libraries: ${e.message}")
@@ -355,38 +405,25 @@ class JellyfinRepository(
             val collections = apiService.getCollections()
             _collections.value = collections
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             _error.value = "fetchCollections: ${e.message ?: e.javaClass.simpleName}"
             println("Error fetching collections: ${e.message}")
         }
     }
 
-    suspend fun fetchLibraryItems(libraryId: String) {
-        try {
-            // Fetch library items with user preference for row card count
-            val items = apiService.getAllLibraryItems(libraryId, limit = settings.rowCardCount)
-            _libraryItems.update { currentMap ->
-                currentMap.toMutableMap().apply {
-                    put(libraryId, items)
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            println("Error fetching library items: ${e.message}")
-        }
-    }
-    
     suspend fun fetchCollectionItems(collectionId: String) {
         try {
             // Fetch items from a collection (BoxSet)
             // Collections are BoxSets, so we fetch their children items
-            val items = apiService.getAllLibraryItems(collectionId)
+            val items = apiService.getLibraryItems(collectionId, limit = settings.rowCardCount).Items
             _collectionItems.update { currentMap ->
                 currentMap.toMutableMap().apply {
                     put(collectionId, items)
                 }
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             println("Error fetching collection items: ${e.message}")
         }
@@ -422,6 +459,7 @@ class JellyfinRepository(
             
             hasNewMovies || hasNewEpisodes || hasNewContinueWatching || hasNewNextUp
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             false // On error, assume no new media to avoid unnecessary refreshes
         }
@@ -434,18 +472,8 @@ class JellyfinRepository(
      * Returns true if refresh was performed.
      */
     suspend fun checkForNewMediaAndRefresh(): Boolean {
-        val hasNewMedia = checkForNewMedia()
-        if (hasNewMedia) {
-            // Refresh all rows
-            fetchContinueWatching()
-            fetchNextUp()
-            fetchRecentlyAddedMovies()
-            fetchRecentlyReleasedMovies()
-            fetchRecentlyAddedShows()
-            fetchRecentlyAddedEpisodes()
-            return true
-        }
-        return false
+        refreshHome(forceMetadata = true)
+        return true
     }
 
     /**
@@ -464,30 +492,12 @@ class JellyfinRepository(
             // Library scans are asynchronous, and images need time to be generated
             delay(2000) // Wait 2 seconds for scan to start and initial processing
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.w("JellyfinRepository", "Failed to trigger library scan, continuing with refresh anyway", e)
         }
         
-        // After triggering scan, check for new media and refresh
-        val hasNewMedia = checkForNewMedia()
-        if (hasNewMedia) {
-            // Refresh all rows
-            fetchContinueWatching()
-            fetchNextUp()
-            fetchRecentlyAddedMovies()
-            fetchRecentlyReleasedMovies()
-            fetchRecentlyAddedShows()
-            fetchRecentlyAddedEpisodes()
-            return true
-        }
-        
-        // Even if no new media detected, still refresh to get updated data (like images)
-        fetchContinueWatching()
-        fetchNextUp()
-        fetchRecentlyAddedMovies()
-        fetchRecentlyReleasedMovies()
-        fetchRecentlyAddedShows()
-        fetchRecentlyAddedEpisodes()
-        return false
+        refreshHome(forceMetadata = true)
+        return true
     }
 }
 

@@ -1,9 +1,28 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.compose.compiler)
 }
+
+// A private file or CI environment supplies signing. Never fall back to a debug key.
+val releaseSigning = Properties().apply {
+    rootProject.file("signing.properties").takeIf { it.isFile }?.inputStream()?.use { load(it) }
+}
+fun signingValue(property: String, environment: String): String? =
+    providers.environmentVariable(environment).orNull?.takeIf { it.isNotBlank() }
+        ?: releaseSigning.getProperty(property)?.takeIf { it.isNotBlank() }
+val signingStore = signingValue("storeFile", "ELEFIN_KEYSTORE_FILE")
+val signingStorePassword = signingValue("storePassword", "ELEFIN_STORE_PASSWORD")
+val signingAlias = signingValue("keyAlias", "ELEFIN_KEY_ALIAS")
+val signingKeyPassword = signingValue("keyPassword", "ELEFIN_KEY_PASSWORD")
+val hasReleaseSigning = listOf(signingStore, signingStorePassword, signingAlias, signingKeyPassword).all { it != null }
+require(hasReleaseSigning || listOf(signingStore, signingStorePassword, signingAlias, signingKeyPassword).all { it == null }) {
+    "Release signing is incomplete; supply all four signing values or none (unsigned build)."
+}
+
 
 android {
     namespace = "com.flex.elefin"
@@ -15,10 +34,10 @@ android {
         targetSdk = 36
 
         // Version code: major * 10000 + minor * 100 + patch
-        // Must stay in sync with the release tag: UpdateService.parseVersion("v1.2.1")
-        // computes 10201 and offers an update only when that beats this value.
-        versionCode = 10201
-        versionName = "1.2.1-zh-hw"
+        // Must stay in sync with the release tag: UpdateService.parseVersion("v1.2.2")
+        // computes 10202 and offers an update only when that beats this value.
+        versionCode = 10202
+        versionName = "1.2.2-zh-hw"
 
         ndk {
             // No separate native symbol bundle - nothing here is uploaded to Play.
@@ -46,12 +65,14 @@ android {
         }
     }
 
-    signingConfigs {
-        create("release") {
-            storeFile = rootProject.file("elefin-android5.keystore")
-            storePassword = "elefin-android5"
-            keyAlias = "elefin-android5"
-            keyPassword = "elefin-android5"
+    if (hasReleaseSigning) {
+        signingConfigs.create("release") {
+            storeFile = rootProject.file(signingStore!!)
+            storePassword = signingStorePassword
+            keyAlias = signingAlias
+            keyPassword = signingKeyPassword
+            enableV1Signing = true // Android 5.0 requires JAR signatures.
+            enableV2Signing = true
         }
     }
 
@@ -59,7 +80,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -109,6 +130,7 @@ android {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
 
     // Core library desugaring (java.time etc. on Android 5.0 / API 21)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
@@ -212,7 +234,7 @@ dependencies {
     // Removed in this fork: the upstream decoder_av1 (libgav1) module had
     // incomplete sources (missing cpu_features/libgav1 submodules) and failed
     // to build. AV1 software decoding is still available through MPV (dav1d)
-    // and the Jellyfin FFmpeg decoder above.
+    // only. The Jellyfin FFmpeg extension above decodes audio, not video.
 
     // -------------------------------------------------------------
     // MPV Player (Optional - can be enabled in settings)

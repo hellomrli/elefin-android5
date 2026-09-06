@@ -62,6 +62,8 @@ object PlexPaletteExtractor {
             else -> palette.dominantSwatch
         }?.rgb ?: Color.White.toArgb()
 
+        if (scaled !== bitmap) scaled.recycle()
+
         val background = clampForBackground(Color(bgColor))
         val accent = clampForAccent(Color(accentColor))
 

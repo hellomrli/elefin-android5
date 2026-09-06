@@ -23,10 +23,10 @@ object MpvElefinLauncher {
     private const val MPV_ELEFIN_ACTIVITY = "com.flex.mpvelefin.MpvPlayerActivity"
     
     /**
-     * Check if MPV is available (always true now as it is embedded).
+     * Check that the embedded JNI libraries can actually be loaded.
      */
     fun isInstalled(context: Context): Boolean {
-        return true
+        return `is`.xyz.mpv.MPVLib.isAvailable()
     }
  
     /**
@@ -89,7 +89,9 @@ object MpvElefinLauncher {
         title: String,
         resumePositionMs: Long = 0L,
         config: JellyfinConfig,
-        subtitleFilePath: String? = null
+        subtitleFilePath: String? = null,
+        subtitleStreamIndex: Int? = null,
+        audioStreamIndex: Int? = null
     ): Boolean {
         if (!isInstalled(context)) {
             Log.w(TAG, "mpv-elefin is not installed")
@@ -109,7 +111,7 @@ object MpvElefinLauncher {
             serverUrl = serverUrl,
             itemId = itemId,
             accessToken = accessToken,
-            startTimeTicks = resumeTicks
+            startTimeTicks = null // MPV seeks on the original timeline using its start option
         )
 
         // Build headers
@@ -135,6 +137,9 @@ object MpvElefinLauncher {
                 itemId = itemId,
                 resumePositionMs = resumePositionMs
             )
+            subtitleFilePath?.let { intent.putExtra("subtitle_file", it) }
+            subtitleStreamIndex?.let { intent.putExtra("subtitle_stream_index", it) }
+            audioStreamIndex?.let { intent.putExtra("audio_stream_index", it) }
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
             true

@@ -187,6 +187,7 @@ class GLVideoSurfaceView @JvmOverloads constructor(
         }
     
     // Frame blending (soap opera effect)
+    @Volatile
     var enableFrameBlending: Boolean = false
         set(value) {
             field = value
@@ -365,12 +366,22 @@ class GLVideoSurfaceView @JvmOverloads constructor(
         textureCopyShaderProgram = createTextureCopyShaderProgram()
         cacheShaderLocations()
         
-        // Create FBOs for storing previous frames (for frame blending and motion interpolation)
-        createPreviousFrameFBO()
+        // A recreated EGL context invalidates the old object names. Allocate on demand.
+        prevFrameFBO = 0
+        prevFrameTexture = 0
+        hasPreviousFrame = false
         
         Log.d(TAG, "GL pipeline initialized, Surface created")
     }
     
+    private fun releasePreviousFrameFBO() {
+        if (prevFrameFBO != 0) GLES20.glDeleteFramebuffers(1, intArrayOf(prevFrameFBO), 0)
+        if (prevFrameTexture != 0) GLES20.glDeleteTextures(1, intArrayOf(prevFrameTexture), 0)
+        prevFrameFBO = 0
+        prevFrameTexture = 0
+        hasPreviousFrame = false
+    }
+
     private fun createPreviousFrameFBO() {
         // Generate FBO for previous frame (used for frame blending)
         val fbos = IntArray(1)
@@ -425,15 +436,9 @@ class GLVideoSurfaceView @JvmOverloads constructor(
             hasPreviousFrame = false
             frameCount = 0
             
-            // Recreate FBO with new size
-            if (prevFrameFBO != 0) {
-                val fbos = intArrayOf(prevFrameFBO)
-                GLES20.glDeleteFramebuffers(1, fbos, 0)
-                val textures = intArrayOf(prevFrameTexture)
-                GLES20.glDeleteTextures(1, textures, 0)
-            }
-            createPreviousFrameFBO()
-            
+            releasePreviousFrameFBO()
+            if (enableFrameBlending) createPreviousFrameFBO()
+
             // Recalculate aspect ratio vertex buffer
             updateAspectRatioVertexBuffer()
         }
@@ -451,7 +456,9 @@ class GLVideoSurfaceView @JvmOverloads constructor(
         // Clear the screen
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
         
-        // Draw the video frame with effects
+        // Allocate/release on the GL thread, including runtime setting changes.
+        if (enableFrameBlending && prevFrameFBO == 0) createPreviousFrameFBO()
+        if (!enableFrameBlending && prevFrameFBO != 0) releasePreviousFrameFBO()
         drawVideoFrame()
         
         // If frame blending is enabled, copy current frame to FBO

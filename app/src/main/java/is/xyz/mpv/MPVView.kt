@@ -13,6 +13,7 @@ import `is`.xyz.mpv.MPVLib.MpvFormat.MPV_FORMAT_INT64
 import `is`.xyz.mpv.MPVLib.MpvFormat.MPV_FORMAT_NONE
 import `is`.xyz.mpv.MPVLib.MpvFormat.MPV_FORMAT_STRING
 import java.io.File
+import com.flex.elefin.util.hasTightMemory
 
 /**
  * MPV SurfaceView for video rendering.
@@ -30,6 +31,7 @@ class MPVView(context: Context, attrs: AttributeSet? = null) : SurfaceView(conte
     private var voInUse: String = "gpu"
     private var httpHeaders: String? = null
     private var isInitialized = false
+    val session = MpvSession()
 
     constructor(context: Context) : this(context, null)
 
@@ -44,54 +46,55 @@ class MPVView(context: Context, attrs: AttributeSet? = null) : SurfaceView(conte
     /**
      * Initialize MPV. Call this once before the view is shown.
      */
-    fun initialize(configDir: String, cacheDir: String) {
+    fun initialize(configDir: String, cacheDir: String, caFile: File) {
         if (isInitialized) {
             Log.w(TAG, "MPV already initialized")
             return
         }
         
-        // Copy bundled fonts from assets to internal storage for libass
         val fontsDir = File(context.filesDir, "fonts")
-        copyFontsFromAssets(fontsDir)
 
-        MPVLib.create(context)
+        session.create(context)
+        try {
 
         // Set config options
-        MPVLib.setOptionString("config", "yes")
-        MPVLib.setOptionString("config-dir", configDir)
+        session.setOptionString("config", "yes")
+        session.setOptionString("config-dir", configDir)
         
         // Cache directories
         for (opt in arrayOf("gpu-shader-cache-dir", "icc-cache-dir"))
-            MPVLib.setOptionString(opt, cacheDir)
+            session.setOptionString(opt, cacheDir)
         
         // Font directory for libass - CRITICAL for text subtitle rendering
-        MPVLib.setOptionString("sub-fonts-dir", fontsDir.absolutePath)
-        MPVLib.setOptionString("osd-fonts-dir", fontsDir.absolutePath)
+        session.setOptionString("sub-fonts-dir", fontsDir.absolutePath)
+        session.setOptionString("osd-fonts-dir", fontsDir.absolutePath)
 
-        // Initialize options before MPVLib.init()
+        // Initialize options before session.init()
         initOptions()
 
         // Set HTTP headers if provided (must be before init)
         httpHeaders?.let { headers ->
             if (headers.isNotEmpty()) {
-                MPVLib.setOptionString("http-header-fields", headers)
+                session.setOptionString("http-header-fields", com.flex.elefin.player.mpv.toMpvHeaderOption(headers))
                 Log.d(TAG, "HTTP headers set")
             }
         }
 
         // Disable ytdl to prevent interference with direct URLs
-        MPVLib.setOptionString("ytdl", "no")
-        MPVLib.setOptionString("load-scripts", "no")
+        session.setOptionString("ytdl", "no")
+        session.setOptionString("load-scripts", "no")
 
-        MPVLib.init()
+        check(session.setOptionString("tls-verify", "yes") == 0) { "MPV 无法启用 HTTPS 证书校验" }
+        check(session.setOptionString("tls-ca-file", caFile.absolutePath) == 0) { "MPV 无法加载可信证书" }
+        session.init()
 
         // Post-init options
         postInitOptions()
 
         // Surface management options - keep window alive for subtitle rendering
-        MPVLib.setOptionString("force-window", "yes")  // Keep window even without surface
-        MPVLib.setOptionString("keep-open", "yes")  // Keep player open after playback ends
-        MPVLib.setOptionString("idle", "yes")  // Stay idle instead of exiting
+        session.setOptionString("force-window", "yes")  // Keep window even without surface
+        session.setOptionString("keep-open", "yes")  // Keep player open after playback ends
+        session.setOptionString("idle", "yes")  // Stay idle instead of exiting
 
         holder.addCallback(this)
         observeProperties()
@@ -100,98 +103,102 @@ class MPVView(context: Context, attrs: AttributeSet? = null) : SurfaceView(conte
         Log.d(TAG, "MPV initialized successfully")
         
         // Log subtitle-related properties for debugging
-        val subVis = MPVLib.getPropertyBoolean("sub-visibility")
-        val sid = MPVLib.getPropertyString("sid")
+        val subVis = session.getPropertyBoolean("sub-visibility")
+        val sid = session.getPropertyString("sid")
         Log.d(TAG, "Initial subtitle state: sub-visibility=$subVis, sid=$sid")
+        } catch (error: Throwable) {
+            holder.removeCallback(this)
+            session.destroy()
+            isInitialized = false
+            throw error
+        }
     }
 
     private fun initOptions() {
         // Use fast profile for mobile
-        MPVLib.setOptionString("profile", "fast")
+        session.setOptionString("profile", "fast")
 
         // Video output - Initialize as null to prevent "Missing surface pointer" error
         // We will enable it in surfaceCreated
-        MPVLib.setOptionString("vo", "null")
+        session.setOptionString("vo", "null")
 
         // Hardware decoding
-        MPVLib.setOptionString("hwdec", HWDECS)
-        MPVLib.setOptionString("hwdec-codecs", "h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1")
+        session.setOptionString("hwdec", HWDECS)
+        session.setOptionString("hwdec-codecs", "h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1")
 
         // Audio output
-        MPVLib.setOptionString("ao", "audiotrack,opensles")
+        session.setOptionString("ao", "audiotrack,opensles")
         
         // Subtitle settings - ensure subtitles are visible and rendered
-        MPVLib.setOptionString("sub-visibility", "yes")
-        MPVLib.setOptionString("sub-auto", "fuzzy")  // Auto-load external subtitles
-        MPVLib.setOptionString("sid", "auto")  // Auto-select first subtitle track
-        MPVLib.setOptionString("sub-forced-events-only", "no")  // Show all subtitle events, not just forced
+        session.setOptionString("sub-visibility", "yes")
+        session.setOptionString("sub-auto", "fuzzy")  // Auto-load external subtitles
+        session.setOptionString("sid", "auto")  // Auto-select first subtitle track
+        session.setOptionString("sub-forced-events-only", "no")  // Show all subtitle events, not just forced
         
         // Font settings - CRITICAL for subtitle rendering
-        MPVLib.setOptionString("embeddedfonts", "yes")  // Use fonts embedded in video files
-        MPVLib.setOptionString("sub-font", "Roboto")  // Use bundled Roboto font
-        MPVLib.setOptionString("sub-font-provider", "none")  // Don't use system font provider (broken on Android)
+        session.setOptionString("embeddedfonts", "yes")  // Use fonts embedded in video files
+        session.setOptionString("sub-font", "sans-serif")
+        session.setOptionString("sub-font-provider", "auto")  // System links also cover builds without a provider
         
         // Subtitle rendering - CRITICAL for Android GPU output
-        MPVLib.setOptionString("sub-ass", "yes")  // Enable ASS/SSA subtitle rendering
-        MPVLib.setOptionString("sub-ass-force-margins", "no")  // Don't force margins
+        session.setOptionString("sub-ass", "yes")  // Enable ASS/SSA subtitle rendering
+        session.setOptionString("sub-ass-force-margins", "no")  // Don't force margins
         
         // Subtitle/video blending. "video" blends subtitles into the frame *before*
         // scaling, which forces an extra full-resolution GPU pass - expensive on the
         // Mali GPUs in Android 5 boxes. mpv's default draws them after scaling and
         // looks the same on a TV, so stay with the default.
-        MPVLib.setOptionString("blend-subtitles", "no")
+        session.setOptionString("blend-subtitles", "no")
         
         // Secondary subtitle (for dual subtitle display) - disabled
-        MPVLib.setOptionString("secondary-sid", "no")
+        session.setOptionString("secondary-sid", "no")
         
         // Subtitle styling for SRT and other text subtitles  
-        MPVLib.setOptionString("sub-font-size", "55")  // Larger font for TV visibility
-        MPVLib.setOptionString("sub-color", "#FFFFFFFF")  // White text
-        MPVLib.setOptionString("sub-border-color", "#FF000000")  // Black border
-        MPVLib.setOptionString("sub-border-size", "3")  // Border thickness
-        MPVLib.setOptionString("sub-shadow-color", "#80000000")  // Semi-transparent shadow
-        MPVLib.setOptionString("sub-shadow-offset", "2")  // Shadow offset
-        MPVLib.setOptionString("sub-pos", "95")  // Position from top (95% = near bottom)
+        session.setOptionString("sub-font-size", "55")  // Larger font for TV visibility
+        session.setOptionString("sub-color", "#FFFFFFFF")  // White text
+        session.setOptionString("sub-border-color", "#FF000000")  // Black border
+        session.setOptionString("sub-border-size", "3")  // Border thickness
+        session.setOptionString("sub-shadow-color", "#80000000")  // Semi-transparent shadow
+        session.setOptionString("sub-shadow-offset", "2")  // Shadow offset
+        session.setOptionString("sub-pos", "95")  // Position from top (95% = near bottom)
         
         // Ensure subtitles are rendered
-        MPVLib.setOptionString("sub-scale", "1.0")
-        MPVLib.setOptionString("sub-scale-with-window", "yes")
-        MPVLib.setOptionString("sub-use-margins", "yes")  // Use margins for positioning
+        session.setOptionString("sub-scale", "1.0")
+        session.setOptionString("sub-scale-with-window", "yes")
+        session.setOptionString("sub-use-margins", "yes")  // Use margins for positioning
         
         // OSD settings - required for subtitle display
-        MPVLib.setOptionString("osd-level", "3")  // Full OSD including subtitles
-        MPVLib.setOptionString("osd-bar", "yes")
+        session.setOptionString("osd-level", "3")  // Full OSD including subtitles
+        session.setOptionString("osd-bar", "yes")
         
         // Log level. Verbose ("all=v") formats every internal mpv message and pushes it
         // across JNI to the Java log callback - a per-packet/per-frame cost that is
         // clearly visible on weak Android TV SoCs. Keep errors only.
-        MPVLib.setOptionString("msg-level", "all=error")
+        session.setOptionString("msg-level", "all=error")
 
         // Display FPS
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val disp = ContextCompat.getDisplayOrDefault(context)
             val refreshRate = disp.mode.refreshRate
             Log.v(TAG, "Display reports FPS of $refreshRate")
-            MPVLib.setOptionString("display-fps-override", refreshRate.toString())
+            session.setOptionString("display-fps-override", refreshRate.toString())
         }
 
         // GPU context for Android - CRITICAL for subtitle rendering
-        MPVLib.setOptionString("gpu-context", "android")
-        MPVLib.setOptionString("gpu-api", "opengl")  // Required for libass subtitle overlay
-        MPVLib.setOptionString("opengl-es", "yes")
+        session.setOptionString("gpu-context", "android")
+        session.setOptionString("gpu-api", "opengl")  // Required for libass subtitle overlay
+        session.setOptionString("opengl-es", "yes")
 
-        // TLS settings - allow self-signed certs for local servers
-        MPVLib.setOptionString("tls-verify", "no")
 
         // Demuxer cache settings for mobile
-        val cacheMegs = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) 64 else 32
-        MPVLib.setOptionString("demuxer-max-bytes", "${cacheMegs * 1024 * 1024}")
-        MPVLib.setOptionString("demuxer-max-back-bytes", "${cacheMegs * 1024 * 1024}")
+        val cacheMegs = if (context.hasTightMemory()) 16 else 32
+        session.setOptionString("demuxer-max-bytes", "${cacheMegs * 1024 * 1024}")
+        session.setOptionString("demuxer-max-back-bytes", "${cacheMegs * 1024 * 1024 / 4}")
     }
 
     private fun postInitOptions() {
         // Don't auto-save position, we handle this ourselves for Jellyfin
-        MPVLib.setOptionString("save-position-on-quit", "no")
+        session.setOptionString("save-position-on-quit", "no")
     }
 
     private fun observeProperties() {
@@ -212,7 +219,7 @@ class MPVView(context: Context, attrs: AttributeSet? = null) : SurfaceView(conte
         )
 
         for ((name, format) in properties)
-            MPVLib.observeProperty(name, format)
+            session.observeProperty(name, format)
     }
 
     /**
@@ -222,7 +229,7 @@ class MPVView(context: Context, attrs: AttributeSet? = null) : SurfaceView(conte
         if (!isInitialized) return
         
         holder.removeCallback(this)
-        MPVLib.destroy()
+        session.destroy()
         isInitialized = false
         Log.d(TAG, "MPV destroyed")
     }
@@ -239,34 +246,34 @@ class MPVView(context: Context, attrs: AttributeSet? = null) : SurfaceView(conte
      */
     fun setVo(vo: String) {
         voInUse = vo
-        MPVLib.setOptionString("vo", vo)
+        session.setOptionString("vo", vo)
     }
 
     // SurfaceHolder.Callback implementation
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        MPVLib.setPropertyString("android-surface-size", "${width}x$height")
+        session.setPropertyString("android-surface-size", "${width}x$height")
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         Log.d(TAG, "Surface created, attaching to MPV")
-        MPVLib.attachSurface(holder.surface)
-        MPVLib.setOptionString("force-window", "yes")
+        session.attachSurface(holder.surface)
+        session.setOptionString("force-window", "yes")
         
         // Enable VO now that surface is ready
-        MPVLib.setPropertyString("vo", voInUse)
+        session.setPropertyString("vo", voInUse)
 
         if (filePath != null) {
-            MPVLib.command(arrayOf("loadfile", filePath as String))
+            session.command(arrayOf("loadfile", filePath as String))
             filePath = null
         }
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         Log.d(TAG, "Surface destroyed, detaching from MPV")
-        MPVLib.setPropertyString("vo", "null")
-        MPVLib.setPropertyString("force-window", "no")
-        MPVLib.detachSurface()
+        session.setPropertyString("vo", "null")
+        session.setPropertyString("force-window", "no")
+        session.detachSurface()
     }
 
     // Observer management
@@ -282,29 +289,29 @@ class MPVView(context: Context, attrs: AttributeSet? = null) : SurfaceView(conte
     // Playback control properties
 
     var paused: Boolean?
-        get() = MPVLib.getPropertyBoolean("pause")
-        set(value) = MPVLib.setPropertyBoolean("pause", value!!)
+        get() = session.getPropertyBoolean("pause")
+        set(value) = session.setPropertyBoolean("pause", value!!)
 
     var timePos: Double?
-        get() = MPVLib.getPropertyDouble("time-pos/full")
-        set(value) = MPVLib.setPropertyDouble("time-pos", value!!)
+        get() = session.getPropertyDouble("time-pos/full")
+        set(value) = session.setPropertyDouble("time-pos", value!!)
 
     val duration: Double?
-        get() = MPVLib.getPropertyDouble("duration/full")
+        get() = session.getPropertyDouble("duration/full")
 
     val hwdecActive: String
-        get() = MPVLib.getPropertyString("hwdec-current") ?: "no"
+        get() = session.getPropertyString("hwdec-current") ?: "no"
 
     var playbackSpeed: Double?
-        get() = MPVLib.getPropertyDouble("speed")
-        set(value) = MPVLib.setPropertyDouble("speed", value!!)
+        get() = session.getPropertyDouble("speed")
+        set(value) = session.setPropertyDouble("speed", value!!)
 
     val eofReached: Boolean?
-        get() = MPVLib.getPropertyBoolean("eof-reached")
+        get() = session.getPropertyBoolean("eof-reached")
 
     // Playback control methods
 
-    fun cyclePause() = MPVLib.command(arrayOf("cycle", "pause"))
+    fun cyclePause() = session.command(arrayOf("cycle", "pause"))
     
     fun pause() {
         paused = true
@@ -315,18 +322,18 @@ class MPVView(context: Context, attrs: AttributeSet? = null) : SurfaceView(conte
     }
 
     fun seek(seconds: Int) {
-        MPVLib.command(arrayOf("seek", seconds.toString(), "relative"))
+        session.command(arrayOf("seek", seconds.toString(), "relative"))
     }
 
     fun seekTo(position: Double) {
         timePos = position
     }
 
-    fun cycleAudio() = MPVLib.command(arrayOf("cycle", "audio"))
+    fun cycleAudio() = session.command(arrayOf("cycle", "audio"))
     
-    fun cycleSub() = MPVLib.command(arrayOf("cycle", "sub"))
+    fun cycleSub() = session.command(arrayOf("cycle", "sub"))
     
-    fun cycleHwdec() = MPVLib.command(arrayOf("cycle-values", "hwdec", HWDECS, "no"))
+    fun cycleHwdec() = session.command(arrayOf("cycle-values", "hwdec", HWDECS, "no"))
 
     fun cycleSpeed() {
         val speeds = arrayOf(0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0)
@@ -339,28 +346,22 @@ class MPVView(context: Context, attrs: AttributeSet? = null) : SurfaceView(conte
 
     data class Track(val mpvId: Int, val name: String, val lang: String? = null)
     
-    var tracks = mapOf<String, MutableList<Track>>(
-        "audio" to arrayListOf(),
-        "video" to arrayListOf(),
-        "sub" to arrayListOf()
-    )
+    @Volatile
+    var tracks: Map<String, List<Track>> = emptyMap()
+        private set
 
     fun loadTracks() {
-        for (list in tracks.values) {
-            list.clear()
-            list.add(Track(-1, "Off"))
-        }
-        
-        val count = MPVLib.getPropertyInt("track-list/count") ?: return
+        val loaded = listOf("audio", "video", "sub").associateWith { mutableListOf(Track(-1, "Off")) }
+        val count = session.getPropertyInt("track-list/count") ?: return
         
         for (i in 0 until count) {
-            val type = MPVLib.getPropertyString("track-list/$i/type") ?: continue
-            if (!tracks.containsKey(type)) continue
+            val type = session.getPropertyString("track-list/$i/type") ?: continue
+            if (!loaded.containsKey(type)) continue
             
-            val mpvId = MPVLib.getPropertyInt("track-list/$i/id") ?: continue
-            val lang = MPVLib.getPropertyString("track-list/$i/lang")
-            val title = MPVLib.getPropertyString("track-list/$i/title")
-            val codec = MPVLib.getPropertyString("track-list/$i/codec")
+            val mpvId = session.getPropertyInt("track-list/$i/id") ?: continue
+            val lang = session.getPropertyString("track-list/$i/lang")
+            val title = session.getPropertyString("track-list/$i/title")
+            val codec = session.getPropertyString("track-list/$i/codec")
 
             // Build track name
             val trackName = when {
@@ -370,7 +371,7 @@ class MPVView(context: Context, attrs: AttributeSet? = null) : SurfaceView(conte
                 else -> "Track $mpvId"
             }
             
-            tracks.getValue(type).add(Track(mpvId = mpvId, name = trackName, lang = lang))
+            loaded.getValue(type).add(Track(mpvId = mpvId, name = trackName, lang = lang))
             
             // Log subtitle codec info for debugging
             if (type == "sub") {
@@ -378,62 +379,30 @@ class MPVView(context: Context, attrs: AttributeSet? = null) : SurfaceView(conte
             }
         }
         
+        tracks = loaded.mapValues { it.value.toList() }
         Log.d(TAG, "Loaded ${tracks["audio"]?.size ?: 0} audio tracks, ${tracks["sub"]?.size ?: 0} subtitle tracks")
-    }
-
-    /**
-     * Copy bundled fonts from assets to internal storage for libass.
-     * This is required because libass cannot read from Android assets directly.
-     */
-    private fun copyFontsFromAssets(fontsDir: File) {
-        try {
-            if (!fontsDir.exists()) {
-                fontsDir.mkdirs()
-            }
-            
-            val assetManager = context.assets
-            val fontFiles = assetManager.list("fonts") ?: return
-            
-            for (fontFile in fontFiles) {
-                val destFile = File(fontsDir, fontFile)
-                if (!destFile.exists()) {
-                    Log.d(TAG, "Copying font: $fontFile to ${destFile.absolutePath}")
-                    assetManager.open("fonts/$fontFile").use { input ->
-                        destFile.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                    Log.d(TAG, "Font copied successfully: $fontFile")
-                } else {
-                    Log.d(TAG, "Font already exists: $fontFile")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to copy fonts from assets", e)
-        }
     }
 
     // Track selection
 
     var vid: Int
-        get() = MPVLib.getPropertyString("vid")?.toIntOrNull() ?: -1
+        get() = session.getPropertyString("vid")?.toIntOrNull() ?: -1
         set(value) {
-            if (value == -1) MPVLib.setPropertyString("vid", "no")
-            else MPVLib.setPropertyInt("vid", value)
+            if (value == -1) session.setPropertyString("vid", "no")
+            else session.setPropertyInt("vid", value)
         }
 
     var sid: Int
-        get() = MPVLib.getPropertyString("sid")?.toIntOrNull() ?: -1
+        get() = session.getPropertyString("sid")?.toIntOrNull() ?: -1
         set(value) {
-            if (value == -1) MPVLib.setPropertyString("sid", "no")
-            else MPVLib.setPropertyInt("sid", value)
+            if (value == -1) session.setPropertyString("sid", "no")
+            else session.setPropertyInt("sid", value)
         }
 
     var aid: Int
-        get() = MPVLib.getPropertyString("aid")?.toIntOrNull() ?: -1
+        get() = session.getPropertyString("aid")?.toIntOrNull() ?: -1
         set(value) {
-            if (value == -1) MPVLib.setPropertyString("aid", "no")
-            else MPVLib.setPropertyInt("aid", value)
+            if (value == -1) session.setPropertyString("aid", "no")
+            else session.setPropertyInt("aid", value)
         }
 }
-

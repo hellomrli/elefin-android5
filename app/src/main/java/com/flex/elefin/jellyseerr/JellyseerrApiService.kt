@@ -115,6 +115,7 @@ class JellyseerrApiService private constructor(
                     Result.failure(Exception("Login failed: ${response.status}"))
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.e(TAG, "Login error", e)
                 Result.failure(e)
             } finally {
@@ -168,6 +169,7 @@ class JellyseerrApiService private constructor(
                     Result.failure(Exception("Login failed: ${response.status}"))
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.e(TAG, "Jellyfin login error", e)
                 Result.failure(e)
             } finally {
@@ -183,15 +185,7 @@ class JellyseerrApiService private constructor(
         encodeDefaults = true
     }
     
-    private val client = HttpClient(Android) {
-        install(ContentNegotiation) {
-            json(json)
-        }
-        install(HttpTimeout) {
-            requestTimeoutMillis = 30000
-            connectTimeoutMillis = 15000
-        }
-    }
+    private val client = com.flex.elefin.networking.SharedHttpClients.jellyseerr
     
     private val normalizedBaseUrl: String
         get() = if (baseUrl.endsWith("/")) baseUrl.dropLast(1) else baseUrl
@@ -228,6 +222,7 @@ class JellyseerrApiService private constructor(
                 emptyList()
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error fetching trending", e)
             emptyList()
         }
@@ -251,6 +246,7 @@ class JellyseerrApiService private constructor(
                 emptyList()
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error fetching popular movies", e)
             emptyList()
         }
@@ -274,6 +270,7 @@ class JellyseerrApiService private constructor(
                 emptyList()
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error fetching upcoming movies", e)
             emptyList()
         }
@@ -297,6 +294,7 @@ class JellyseerrApiService private constructor(
                 emptyList()
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error fetching popular TV shows", e)
             emptyList()
         }
@@ -320,6 +318,7 @@ class JellyseerrApiService private constructor(
                 emptyList()
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error fetching upcoming TV shows", e)
             emptyList()
         }
@@ -435,6 +434,7 @@ class JellyseerrApiService private constructor(
             }
             response.status.isSuccess()
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Connection test failed", e)
             false
         }
@@ -468,12 +468,15 @@ class JellyseerrApiService private constructor(
                 Result.success(request)
             } else {
                 // Try to get error message from response
-                val errorBody = try { response.bodyAsText() } catch (e: Exception) { "" }
+                val errorBody = try { response.bodyAsText() } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+ "" }
                 val errorMsg = "Request failed with status: ${response.status}, body: $errorBody"
                 Log.e(TAG, errorMsg)
                 Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error requesting movie", e)
             Result.failure(e)
         }
@@ -496,6 +499,7 @@ class JellyseerrApiService private constructor(
                 null
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error fetching TV show details", e)
             null
         }
@@ -527,12 +531,15 @@ class JellyseerrApiService private constructor(
                 Result.success(request)
             } else {
                 // Try to get error message from response
-                val errorBody = try { response.bodyAsText() } catch (e: Exception) { "" }
+                val errorBody = try { response.bodyAsText() } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+ "" }
                 val errorMsg = "Request failed with status: ${response.status}, body: $errorBody"
                 Log.e(TAG, errorMsg)
                 Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error requesting TV show", e)
             Result.failure(e)
         }
@@ -555,6 +562,7 @@ class JellyseerrApiService private constructor(
                 null
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error fetching movie details", e)
             null
         }
@@ -581,13 +589,14 @@ class JellyseerrApiService private constructor(
                 null
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error performing search", e)
             null
         }
     }
 
     fun close() {
-        client.close()
+        // Shared transport belongs to the application; this service owns no resources.
     }
 }
 

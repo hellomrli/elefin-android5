@@ -89,7 +89,7 @@ class MainActivity : ComponentActivity() {
                             if (item.Id.startsWith("jellyseerr_")) {
                                 val tmdbId = item.Id.removePrefix("jellyseerr_").toIntOrNull()
                                 if (tmdbId != null) {
-                                    val mediaType = if (item.Type == "Series") "tv" else "movie"
+                                    val mediaType = com.flex.elefin.jellyfin.MediaTypes.toDiscovery(item.Type) ?: return@JellyfinHomeScreen
                                     val intent = JellyseerrDetailsActivity.createIntent(this@MainActivity, tmdbId, mediaType)
                                     startActivity(intent)
                                     return@JellyfinHomeScreen

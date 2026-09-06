@@ -50,6 +50,8 @@ import com.flex.elefin.jellyfin.AppSettings
 import com.flex.elefin.jellyfin.JellyfinApiService
 import com.flex.elefin.jellyfin.JellyfinConfig
 import `is`.xyz.mpv.MPVLib
+import `is`.xyz.mpv.MpvSession
+import `is`.xyz.mpv.MpvEnvironment
 import `is`.xyz.mpv.MPVView
 import `is`.xyz.mpv.MPVView.Track
 import com.flex.elefin.player.SubtitleDownloader
@@ -71,6 +73,7 @@ import java.io.File
 class MpvTvPlayerActivity : ComponentActivity() {
 
     private var mpvView: MPVView? = null
+    private var finishPlayback: (() -> Unit)? = null
     private var apiService: JellyfinApiService? = null
 
     companion object {
@@ -156,6 +159,7 @@ class MpvTvPlayerActivity : ComponentActivity() {
                     isTrailer = isTrailer,
                     apiService = apiService,
                     onMpvViewCreated = { view -> mpvView = view },
+                    onFinalReportReady = { callback -> finishPlayback = callback },
                     onBack = { finish() }
                 )
             }
@@ -165,33 +169,25 @@ class MpvTvPlayerActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         Log.d(TAG, "onPause called - Stopping playback")
-        // Force pause via property to ensure it sticks at the core level.
-        // This MUST run synchronously: dispatching it to a background thread races
-        // with onDestroy() -> mpvView.destroy(), and a JNI call that lands after the
-        // native context is torn down segfaults (a native crash, not catchable here).
-        // setPropertyBoolean/pause are non-blocking, so there is nothing to offload.
-        try {
-            `is`.xyz.mpv.MPVLib.setPropertyBoolean("pause", true)
-            mpvView?.pause()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error pausing MPV in onPause", e)
-        }
+        mpvView?.pause()
     }
 
     override fun onDestroy() {
-        super.onDestroy()
+        finishPlayback?.invoke()
+        finishPlayback = null
         mpvView?.destroy()
         mpvView = null
+        super.onDestroy()
     }
 }
 
-private fun applySuperResolutionScalers() {
+private fun applySuperResolutionScalers(mpvSession: MpvSession) {
     // AI-style Super Resolution (lightweight)
-    MPVLib.setOptionString("scale", "ewa_lanczossharp")
-    MPVLib.setOptionString("cscale", "ewa_lanczossharp")
-    MPVLib.setOptionString("dscale", "mitchell")
-    MPVLib.setOptionString("linear-downscaling", "no")
-    MPVLib.setOptionString("sigmoid-upscaling", "yes")
+    mpvSession.setOptionString("scale", "ewa_lanczossharp")
+    mpvSession.setOptionString("cscale", "ewa_lanczossharp")
+    mpvSession.setOptionString("dscale", "mitchell")
+    mpvSession.setOptionString("linear-downscaling", "no")
+    mpvSession.setOptionString("sigmoid-upscaling", "yes")
 }
 
 @Composable
@@ -208,15 +204,54 @@ private fun MpvPlayerScreen(
     isTrailer: Boolean = false,
     apiService: JellyfinApiService?,
     onMpvViewCreated: (MPVView) -> Unit,
+    onFinalReportReady: ((() -> Unit)?) -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val playbackReporter = remember(apiService, itemId) {
+        apiService?.takeIf { itemId.isNotEmpty() && !isTrailer }?.let { com.flex.elefin.player.PlaybackReporter(it, itemId) }
+    }
     var mpvViewRef by remember { mutableStateOf<MPVView?>(null) }
+    val mpvSession = mpvViewRef?.session
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    var isResumed by remember { mutableStateOf(lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) }
+    DisposableEffect(lifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, _ ->
+            isResumed = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    var caFile by remember { mutableStateOf<File?>(null) }
+    var setupError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        try {
+            caFile = withContext(Dispatchers.IO) {
+                check(MPVLib.isAvailable()) { "MPV 播放组件无法加载" }
+                val prepared = MpvEnvironment.prepare(context.applicationContext)
+                writeMpvTvConfig(File(context.filesDir, "mpv").apply { mkdirs() })
+                MpvShaderManager.installShaders(context.applicationContext)
+                prepared
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            setupError = error.message ?: "播放器初始化失败"
+        }
+    }
+    LaunchedEffect(mpvSession, externalAudioUrl) {
+        val session = mpvSession ?: return@LaunchedEffect
+        if (externalAudioUrl != null) {
+            delay(500)
+            session.command(arrayOf("audio-add", externalAudioUrl, "select"))
+        }
+    }
     
     // Playback state
     var isPlaying by remember { mutableStateOf(true) }
-    var currentPositionMs by remember { mutableStateOf(0L) }
+    var currentPositionMs by remember { mutableStateOf(resumePositionMs) }
     var durationMs by remember { mutableStateOf(0L) }
     var isBuffering by remember { mutableStateOf(true) }
     
@@ -258,12 +293,12 @@ private fun MpvPlayerScreen(
     var isSubtitleReady by remember { mutableStateOf(false) }
 
     // Reinforce subtitle visibility on track change
-    LaunchedEffect(currentSubtitleId) {
+    LaunchedEffect(currentSubtitleId, mpvSession) {
         if (currentSubtitleId != -1) {
             withContext(Dispatchers.IO) {
                 Log.d("MpvTvPlayer", "Reinforcing subtitle visibility for track: $currentSubtitleId")
-                MPVLib.setPropertyBoolean("sub-visibility", true)
-                MPVLib.setPropertyString("sub-ass-override", "force")
+                mpvSession?.setPropertyBoolean("sub-visibility", true)
+                mpvSession?.setPropertyString("sub-ass-override", "force")
             }
         }
     }
@@ -291,13 +326,14 @@ private fun MpvPlayerScreen(
     }
 
     // Update playback state periodically
-    LaunchedEffect(mpvViewRef) {
+    LaunchedEffect(mpvViewRef, isResumed) {
+        if (!isResumed) return@LaunchedEffect
+        val activeView = mpvViewRef ?: return@LaunchedEffect
         withContext(Dispatchers.IO) {
             var loopCount = 0
             while (isActive) {
                 delay(1000)
-                val mpv = mpvViewRef
-                if (mpv == null) continue
+                val mpv = activeView
 
                 try {
                     // JNI Calls on IO Thread
@@ -317,7 +353,7 @@ private fun MpvPlayerScreen(
                          // Use a lock-like mechanism or just simple check?
                          // We are on IO thread. Startup also uses IO now.
                          // But to be safe, we check if tracks are empty or count mismatch.
-                         val currentTrackCount = MPVLib.getPropertyInt("track-list/count") ?: 0
+                         val currentTrackCount = mpvSession?.getPropertyInt("track-list/count") ?: 0
                          val knownRealTracks = mpv.tracks.values.flatten().count { it.mpvId != -1 }
                         
                          // Only reload if count mismatch AND we haven't tried recently
@@ -360,9 +396,9 @@ private fun MpvPlayerScreen(
                                 
                                 // Fetch and map resolution
                                 withContext(Dispatchers.IO) {
-                                    val width = MPVLib.getPropertyInt("video-params/w") ?: 0
-                                    val height = MPVLib.getPropertyInt("video-params/h") ?: 0
-                                    val colorTransfer = MPVLib.getPropertyString("video-params/color-transfer") ?: "sdr"
+                                    val width = mpvSession?.getPropertyInt("video-params/w") ?: 0
+                                    val height = mpvSession?.getPropertyInt("video-params/h") ?: 0
+                                    val colorTransfer = mpvSession?.getPropertyString("video-params/color-transfer") ?: "sdr"
                                     
                                     val isHdr = colorTransfer == "smpte2084" || colorTransfer == "arib-std-b67"
                                     val hdrTag = if (isHdr) "HDR" else "SDR"
@@ -395,6 +431,7 @@ private fun MpvPlayerScreen(
                     }
 
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     // MPV not ready or other error
                 }
                 loopCount++
@@ -457,6 +494,7 @@ private fun MpvPlayerScreen(
                         isSubtitleReady = true
                     }
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("MpvTvPlayer", "Error loading media streams/external subs", e)
                     isSubtitleReady = true
                 }
@@ -488,11 +526,12 @@ private fun MpvPlayerScreen(
                                 )
                                 val label = stream.DisplayTitle ?: stream.Language ?: "External"
                                 Log.d("MpvTvPlayer", "Adding auxiliary external subtitle: $label")
-                                MPVLib.command(arrayOf("sub-add", subtitleUrl, "auto", label))
+                                mpvSession?.command(arrayOf("sub-add", subtitleUrl, "auto", label))
                             }
                         }
                     }
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.e("MpvTvPlayer", "Error loading auxiliary subs", e)
                 }
             }
@@ -508,6 +547,7 @@ private fun MpvPlayerScreen(
                 rootFocusRequester.requestFocus()
                 Log.d("MpvTvPlayer", "Requested focus to root container")
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.w("MpvTvPlayer", "Failed to request focus: ${e.message}")
             }
         }
@@ -520,7 +560,7 @@ private fun MpvPlayerScreen(
             withContext(Dispatchers.IO) {
                 val startPositionTicks = resumePositionMs * 10_000L
                 // Use initial indices for start report
-                apiService.reportPlaybackStart(
+                playbackReporter?.reportPlaybackStart(
                     itemId, 
                     startPositionTicks,
                     audioStreamIndex = if (initialAudioStreamIndex != -1) initialAudioStreamIndex else null,
@@ -532,8 +572,8 @@ private fun MpvPlayerScreen(
     }
 
     // Progress reporting to Jellyfin (every 10 seconds)
-    LaunchedEffect(isPlaying, mpvViewRef) {
-        if (isPlaying && mpvViewRef != null && apiService != null && itemId.isNotEmpty()) {
+    LaunchedEffect(isPlaying, mpvViewRef, isResumed) {
+        if (isPlaying && isResumed && mpvViewRef != null && apiService != null && itemId.isNotEmpty()) {
             progressReportingJob?.cancel()
             progressReportingJob = scope.launch {
                 while (isActive) {
@@ -542,7 +582,7 @@ private fun MpvPlayerScreen(
                         val positionTicks = currentPositionMs * 10_000L
                         if (positionTicks > 0) {
                             withContext(Dispatchers.IO) {
-                                apiService.reportPlaybackProgress(
+                                playbackReporter?.reportPlaybackProgress(
                                     itemId = itemId,
                                     positionTicks = positionTicks,
                                     isPaused = !isPlaying,
@@ -553,6 +593,7 @@ private fun MpvPlayerScreen(
                             }
                         }
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         Log.w("MpvPlayer", "Error reporting progress", e)
                     }
                 }
@@ -562,80 +603,65 @@ private fun MpvPlayerScreen(
         }
     }
 
-    // Report stopped when exiting
-    DisposableEffect(Unit) {
+    // Capture on the main thread before Activity/native destruction. The queued report owns only values.
+    val finishSession by rememberUpdatedState(newValue = {
+        progressReportingJob?.cancel()
+        val position = mpvViewRef?.timePos?.let { (it * 1000).toLong() } ?: currentPositionMs
+        val duration = mpvViewRef?.duration?.let { (it * 1000).toLong() } ?: durationMs
+        playbackReporter?.finish(position, duration,
+            currentJellyfinAudioIndex.takeIf { it != -1 }, currentJellyfinSubtitleIndex)
+    })
+    DisposableEffect(playbackReporter) {
+        onFinalReportReady { finishSession() }
         onDispose {
-            progressReportingJob?.cancel()
-            val finalPos = currentPositionMs
-            val finalDur = durationMs
-            if (apiService != null && itemId.isNotEmpty()) {
-                scope.launch {
-                    try {
-                        val positionTicks = finalPos * 10_000L
-                        withContext(Dispatchers.IO) {
-                            apiService.reportPlaybackStopped(
-                                itemId, 
-                                positionTicks,
-                                audioStreamIndex = if (currentJellyfinAudioIndex != -1) currentJellyfinAudioIndex else null,
-                                subtitleStreamIndex = if (currentJellyfinSubtitleIndex != -1) currentJellyfinSubtitleIndex else null
-                            )
-                            // Mark as watched if completed 90%+
-                            if (finalDur > 0 && finalPos >= finalDur * 0.90) {
-                                apiService.markAsWatched(itemId)
-                                Log.d("MpvPlayer", "Marked as watched")
-                            }
-                        }
-                    } catch (e: Exception) {
-                        Log.w("MpvPlayer", "Error reporting stopped", e)
-                    }
-                }
-            }
+            finishSession()
+            onFinalReportReady(null)
+            mpvViewRef?.destroy()
         }
     }
 
-    // Apply aspect mode
     LaunchedEffect(currentAspectMode, mpvViewRef) {
         val mpv = mpvViewRef
         if (mpv != null) {
             withContext(Dispatchers.IO) {
                 when (currentAspectMode) {
                     AspectMode.FIT -> {
-                        MPVLib.setOptionString("video-aspect-override", "no")
-                        MPVLib.setOptionString("video-aspect-method", "container")
-                        MPVLib.setOptionString("panscan", "0.0")
-                        MPVLib.setOptionString("video-unscaled", "no")
+                        mpvSession?.setOptionString("video-aspect-override", "no")
+                        mpvSession?.setOptionString("video-aspect-method", "container")
+                        mpvSession?.setOptionString("panscan", "0.0")
+                        mpvSession?.setOptionString("video-unscaled", "no")
                     }
                     AspectMode.FILL -> {
-                        MPVLib.setOptionString("video-aspect-override", "no")
-                        MPVLib.setOptionString("video-aspect-method", "container")
-                        MPVLib.setOptionString("panscan", "1.0")
-                        MPVLib.setOptionString("video-unscaled", "no")
+                        mpvSession?.setOptionString("video-aspect-override", "no")
+                        mpvSession?.setOptionString("video-aspect-method", "container")
+                        mpvSession?.setOptionString("panscan", "1.0")
+                        mpvSession?.setOptionString("video-unscaled", "no")
                     }
                     AspectMode.LETTERBOX -> {
-                        MPVLib.setOptionString("video-aspect-override", "16:9")
-                        MPVLib.setOptionString("panscan", "0.0")
-                        MPVLib.setOptionString("video-unscaled", "no")
+                        mpvSession?.setOptionString("video-aspect-override", "16:9")
+                        mpvSession?.setOptionString("panscan", "0.0")
+                        mpvSession?.setOptionString("video-unscaled", "no")
                     }
                     AspectMode.CINEMA -> {
-                        MPVLib.setOptionString("video-aspect-override", "2.39:1")
-                        MPVLib.setOptionString("panscan", "0.0")
-                        MPVLib.setOptionString("video-unscaled", "no")
+                        mpvSession?.setOptionString("video-aspect-override", "2.39:1")
+                        mpvSession?.setOptionString("panscan", "0.0")
+                        mpvSession?.setOptionString("video-unscaled", "no")
                     }
                     AspectMode.STRETCH -> {
-                        MPVLib.setOptionString("video-aspect-override", "no")
-                        MPVLib.setOptionString("keepaspect", "no")
-                        MPVLib.setOptionString("panscan", "0.0")
-                        MPVLib.setOptionString("video-unscaled", "no")
+                        mpvSession?.setOptionString("video-aspect-override", "no")
+                        mpvSession?.setOptionString("keepaspect", "no")
+                        mpvSession?.setOptionString("panscan", "0.0")
+                        mpvSession?.setOptionString("video-unscaled", "no")
                     }
                     AspectMode.ORIGINAL -> {
-                        MPVLib.setOptionString("video-aspect-override", "no")
-                        MPVLib.setOptionString("video-aspect-method", "container")
-                        MPVLib.setOptionString("panscan", "0.0")
-                        MPVLib.setOptionString("video-unscaled", "yes")
+                        mpvSession?.setOptionString("video-aspect-override", "no")
+                        mpvSession?.setOptionString("video-aspect-method", "container")
+                        mpvSession?.setOptionString("panscan", "0.0")
+                        mpvSession?.setOptionString("video-unscaled", "yes")
                     }
                 }
                 if (currentAspectMode != AspectMode.STRETCH) {
-                    MPVLib.setOptionString("keepaspect", "yes")
+                    mpvSession?.setOptionString("keepaspect", "yes")
                 }
             }
         }
@@ -651,7 +677,7 @@ private fun MpvPlayerScreen(
                 val mpv = mpvViewRef ?: return@withContext
                 
                 // Safe JNI calls
-                MPVLib.setPropertyBoolean("sub-visibility", true)
+                mpvSession?.setPropertyBoolean("sub-visibility", true)
                 mpv.loadTracks()
                 
                 // Trigger initial track state update (pass back to UI)
@@ -756,6 +782,7 @@ private fun MpvPlayerScreen(
                          }
                          
                      } catch (e: Exception) {
+                         if (e is kotlinx.coroutines.CancellationException) throw e
                          Log.e("MpvTvPlayer", "Error matching streams", e)
                      }
                 }
@@ -824,6 +851,7 @@ private fun MpvPlayerScreen(
                          }
                     }
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     Log.w("MpvTvPlayer", "Error resolving Jellyfin indices", e)
                 }
             }
@@ -847,7 +875,7 @@ private fun MpvPlayerScreen(
                 }
         ) {
             // MPV View
-            if (isSubtitleReady) {
+            if (isSubtitleReady && caFile != null && setupError == null && (mpvViewRef != null || isResumed)) {
                 AndroidView(
                     modifier = Modifier.fillMaxSize(),
                     factory = { ctx ->
@@ -864,14 +892,16 @@ private fun MpvPlayerScreen(
                             val configDir = File(ctx.filesDir, "mpv")
                             configDir.mkdirs()
 
-                            // ✅ Write TV-hard config files BEFORE initialize()
-                            writeMpvTvConfig(configDir)
-                            
-                            // ✅ Install Shaders
-                            MpvShaderManager.installShaders(ctx)
+                            val mpvSession = session
+                            setHttpHeaders(headers)
+                            try {
+                                initialize(configDir.absolutePath, ctx.cacheDir.absolutePath, caFile!!)
+                            } catch (error: Exception) {
+                                if (error is kotlinx.coroutines.CancellationException) throw error
+                                setupError = error.message ?: "播放器初始化失败"
+                                return@apply
+                            }
 
-                            initialize(configDir.absolutePath, ctx.cacheDir.absolutePath)
-                            
                             // ✅ Apply Shader Profile
                             val settings = AppSettings(ctx)
                             try {
@@ -893,64 +923,65 @@ private fun MpvPlayerScreen(
                                     // Join with standard path separator (:)
                                     val shaderList = shaderPaths.joinToString(File.pathSeparator)
                                     Log.d("MpvTvPlayer", "Setting glsl-shaders: $shaderList")
-                                    MPVLib.setOptionString("glsl-shaders", shaderList)
+                                    mpvSession.setOptionString("glsl-shaders", shaderList)
                                 } else {
                                     // If None, clear shaders just in case (though init should be clean)
-                                    MPVLib.setOptionString("glsl-shaders", "")
+                                    mpvSession.setOptionString("glsl-shaders", "")
                                 }
 
                                 // Profile-specific extra settings
                                 when (profile) {
                                     MpvShaderManager.ShaderProfile.Cinema -> {
-                                        MPVLib.setOptionString("deband", "yes")
-                                        MPVLib.setOptionString("deband-iterations", "2")
-                                        MPVLib.setOptionString("deband-threshold", "48")
+                                        mpvSession.setOptionString("deband", "yes")
+                                        mpvSession.setOptionString("deband-iterations", "2")
+                                        mpvSession.setOptionString("deband-threshold", "48")
                                     }
                                     MpvShaderManager.ShaderProfile.Sports -> {
-                                        applySuperResolutionScalers()
+                                        applySuperResolutionScalers(mpvSession)
                                     }
                                     MpvShaderManager.ShaderProfile.Sharp -> {
-                                        applySuperResolutionScalers()
+                                        applySuperResolutionScalers(mpvSession)
                                     }
                                     MpvShaderManager.ShaderProfile.HdrBoostPlus -> {
-                                        MPVLib.setOptionString("scale", "bilinear")
-                                        MPVLib.setOptionString("deband", "no")
+                                        mpvSession.setOptionString("scale", "bilinear")
+                                        mpvSession.setOptionString("deband", "no")
                                     }
                                     else -> {
                                         // Default safer scaling
-                                        MPVLib.setOptionString("scale", "bilinear")
-                                        MPVLib.setOptionString("deband", "no")
+                                        mpvSession.setOptionString("scale", "bilinear")
+                                        mpvSession.setOptionString("deband", "no")
                                     }
                                 }
                             } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e
                                 Log.e("MpvTvPlayer", "Error applying shader profile", e)
                             }
                             
                             // 🔥 Force-enable subtitle renderer at runtime (REINFORCED FOR SRT)
-                            MPVLib.setPropertyBoolean("sub-ass", true)
-                            MPVLib.setPropertyBoolean("sub-visibility", true)
-                            MPVLib.setPropertyString("sub-ass-override", "force")
-                            MPVLib.setPropertyString("sub-font", "sans")
-                            MPVLib.setPropertyDouble("sub-font-size", 52.0)
-                            MPVLib.setPropertyString("sub-bold", "yes")
-                            MPVLib.setPropertyString("sub-color", "#FFFFFFFF")
-                            MPVLib.setPropertyString("sub-border-color", "#FF000000")
-                            MPVLib.setPropertyDouble("sub-border-size", 3.0)
-                            MPVLib.setPropertyDouble("sub-shadow-offset", 2.0)
-                            MPVLib.setPropertyString("sub-use-margins", "no")
-                            MPVLib.setPropertyString("sub-auto", "fuzzy")
-                            MPVLib.setPropertyString("sub-fix-timing", "yes")
-                            MPVLib.setPropertyBoolean("embeddedfonts", true)
+                            mpvSession.setPropertyBoolean("sub-ass", true)
+                            mpvSession.setPropertyBoolean("sub-visibility", true)
+                            mpvSession.setPropertyString("sub-ass-override", "force")
+                            mpvSession.setPropertyString("sub-font", "sans")
+                            mpvSession.setPropertyDouble("sub-font-size", 52.0)
+                            mpvSession.setPropertyString("sub-bold", "yes")
+                            mpvSession.setPropertyString("sub-color", "#FFFFFFFF")
+                            mpvSession.setPropertyString("sub-border-color", "#FF000000")
+                            mpvSession.setPropertyDouble("sub-border-size", 3.0)
+                            mpvSession.setPropertyDouble("sub-shadow-offset", 2.0)
+                            mpvSession.setPropertyString("sub-use-margins", "no")
+                            mpvSession.setPropertyString("sub-auto", "fuzzy")
+                            mpvSession.setPropertyString("sub-fix-timing", "yes")
+                            mpvSession.setPropertyBoolean("embeddedfonts", true)
 
                             // Still keep these as reinforcement
-                            MPVLib.setOptionString("osc", "no")
-                            MPVLib.setOptionString("input-touch", "no")
-                            MPVLib.setOptionString("input-default-bindings", "no")
-                            MPVLib.setOptionString("input-builtin-bindings", "no")
+                            mpvSession.setOptionString("osc", "no")
+                            mpvSession.setOptionString("input-touch", "no")
+                            mpvSession.setOptionString("input-default-bindings", "no")
+                            mpvSession.setOptionString("input-builtin-bindings", "no")
 
                             if (resumePositionMs > 0) {
                                 val startSeconds = resumePositionMs / 1000.0
-                                MPVLib.setOptionString("start", startSeconds.toString())
+                                mpvSession.setOptionString("start", startSeconds.toString())
                             }
 
                             setHttpHeaders(headers)
@@ -958,30 +989,21 @@ private fun MpvPlayerScreen(
                             // ✅ INJECT PRIMARY SUBTITLE AS OPTION (ROCK-SOLID METHOD)
                             if (resolvedSubtitlePath != null) {
                                 Log.d("MpvTvPlayer", "Injecting sub-file (cached): $resolvedSubtitlePath")
-                                MPVLib.setOptionString("sub-file", resolvedSubtitlePath!!)
-                                MPVLib.setOptionString("sid", "auto")
+                                mpvSession.setOptionString("sub-file", resolvedSubtitlePath!!)
+                                mpvSession.setOptionString("sid", "auto")
                             } else if (subtitleFile != null && !subtitleFile.startsWith("http")) {
                                 Log.d("MpvTvPlayer", "Injecting sub-file (provided): $subtitleFile")
                                 // Fallback for local files if any
-                                MPVLib.setOptionString("sub-file", subtitleFile)
-                                MPVLib.setOptionString("sid", "auto")
+                                mpvSession.setOptionString("sub-file", subtitleFile)
+                                mpvSession.setOptionString("sid", "auto")
                             }
 
                             // TRAILER OPTIMIZATION
                             if (isTrailer) {
-                                MPVLib.command(arrayOf("apply-profile", "trailer"))
+                                mpvSession.command(arrayOf("apply-profile", "trailer"))
                             }
 
                             playFile(url)
-
-                            // AUDIO TRACK
-                            if (externalAudioUrl != null) {
-                                // Use Handler to ensure the main file load has initialized the player core
-                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                     Log.d("MpvTvPlayer", "Executing delayed audio-add: $externalAudioUrl")
-                                     MPVLib.command(arrayOf("audio-add", externalAudioUrl, "select"))
-                                }, 500)
-                            }
 
                             mpvViewRef = this
                             onMpvViewCreated(this)
@@ -991,7 +1013,9 @@ private fun MpvPlayerScreen(
             }
 
             // Buffering indicator
-            if (isBuffering || !isSubtitleReady) {
+            if (setupError != null) {
+                Text(setupError!!, color = Color.White, modifier = Modifier.align(Alignment.Center))
+            } else if (isBuffering || !isSubtitleReady || caFile == null) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
                     color = Color.White
@@ -1415,9 +1439,9 @@ private fun MpvPlayerScreen(
                     scope.launch(Dispatchers.IO) {
                         mpvViewRef?.sid = trackId
                         if (trackId != -1) {
-                            MPVLib.setPropertyBoolean("sub-visibility", true)
+                            mpvSession?.setPropertyBoolean("sub-visibility", true)
                             // Reinforce override on manual selection
-                            MPVLib.setPropertyString("sub-ass-override", "force")
+                            mpvSession?.setPropertyString("sub-ass-override", "force")
                         }
                     }
                     currentSubtitleId = trackId

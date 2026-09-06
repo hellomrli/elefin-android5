@@ -152,6 +152,7 @@ object SubtitleDownloader {
             return@withContext localPath
             
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "❌ Error downloading subtitle: ${e.message}", e)
             return@withContext null
         }
@@ -240,6 +241,7 @@ object SubtitleDownloader {
             downloadedSubtitles.clear()
             Log.d(TAG, "✅ Cleared all subtitle caches")
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error clearing subtitle cache", e)
         }
     }

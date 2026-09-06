@@ -2053,6 +2053,7 @@ fun SettingsScreen(
                                                 val imageLoader: coil.ImageLoader = context.imageLoader
                                                 imageLoader.diskCache?.clear()
                                                 imageLoader.memoryCache?.clear()
+                                                com.flex.elefin.ui.ArtworkPaletteLoader.clear()
 
                                                 val coilCacheDir = context.filesDir.resolve("image_cache")
                                                 if (coilCacheDir.exists()) {
@@ -2122,7 +2123,8 @@ fun SettingsScreen(
                                                     @Suppress("DEPRECATION")
                                                     context.packageManager.getPackageInfo(context.packageName, 0).versionCode
                                                 }
-                                            } catch (e: Exception) { 1 }
+                                            } catch (e: Exception) {
+ 1 }
                                             
                                             val release = withContext(Dispatchers.IO) {
                                                 UpdateService.getLatestRelease()

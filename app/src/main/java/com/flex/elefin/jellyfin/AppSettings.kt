@@ -2,8 +2,10 @@ package com.flex.elefin.jellyfin
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.flex.elefin.util.hasTightMemory
 
 class AppSettings(context: Context) {
+    private val lowMemoryDefault = context.hasTightMemory()
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     companion object {
@@ -369,12 +371,12 @@ class AppSettings(context: Context) {
     
     // UI performance settings
     var disableUIAnimations: Boolean
-        get() = prefs.getBoolean(KEY_DISABLE_UI_ANIMATIONS, false) // Disabled by default (animations enabled)
+        get() = prefs.getBoolean(KEY_DISABLE_UI_ANIMATIONS, lowMemoryDefault) // Saved user choices override the device default
         set(value) = prefs.edit().putBoolean(KEY_DISABLE_UI_ANIMATIONS, value).apply()
     
     // Use simple cards without zoom animation (better for low-spec devices)
     var useSimpleCards: Boolean
-        get() = prefs.getBoolean(KEY_USE_SIMPLE_CARDS, false) // Disabled by default
+        get() = prefs.getBoolean(KEY_USE_SIMPLE_CARDS, lowMemoryDefault) // Disabled by default
         set(value) = prefs.edit().putBoolean(KEY_USE_SIMPLE_CARDS, value).apply()
     
     // Use Google TV style cards (lightweight with subtle scale animation)
@@ -384,7 +386,7 @@ class AppSettings(context: Context) {
     
     // Low power mode - enables all performance optimizations for budget devices
     var lowPowerMode: Boolean
-        get() = prefs.getBoolean(KEY_LOW_POWER_MODE, false) // Disabled by default
+        get() = prefs.getBoolean(KEY_LOW_POWER_MODE, lowMemoryDefault) // Disabled by default
         set(value) = prefs.edit().putBoolean(KEY_LOW_POWER_MODE, value).apply()
     
     // Use 4K background images (disabled by default)

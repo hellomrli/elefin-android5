@@ -27,3 +27,9 @@ local.properties
 /build_log_*.txt
 /build_output*.txt
 /clean_build_log.txt
+
+# Private release signing (legacy identity retained locally for update compatibility)
+/.private-signing/
+/signing.properties
+*.keystore
+*.jks

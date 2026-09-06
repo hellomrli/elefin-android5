@@ -73,14 +73,7 @@ class JellyfinMusicApi(
     private val accessToken: String,
     private val userId: String
 ) {
-    private val client = HttpClient(Android) {
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                isLenient = true
-            })
-        }
-    }
+    private val client = com.flex.elefin.networking.SharedHttpClients.jellyfin
 
     private val base: String
         get() = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
@@ -101,7 +94,7 @@ class JellyfinMusicApi(
                 parameters.append("SortOrder", "Ascending")
                 parameters.append("Limit", limit.toString())
                 parameters.append("StartIndex", startIndex.toString())
-                parameters.append("Fields", "Overview,SongCount,AlbumCount")
+                parameters.append("Fields", "Overview,ItemCounts")
             }.buildString()
 
             Log.d(TAG, "Fetching artists (via Items): $url")
@@ -121,6 +114,7 @@ class JellyfinMusicApi(
                 )
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error fetching artists", e)
             emptyList()
         }
@@ -137,7 +131,7 @@ class JellyfinMusicApi(
                 parameters.append("Recursive", "true")
                 parameters.append("SortBy", "ProductionYear,SortName")
                 parameters.append("SortOrder", "Descending")
-                parameters.append("Fields", "Overview,ChildCount,RunTimeTicks")
+                parameters.append("Fields", "Overview,ChildCount")
             }.buildString()
 
             Log.d(TAG, "Fetching albums for artist $artistId: $url")
@@ -160,6 +154,7 @@ class JellyfinMusicApi(
                 )
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error fetching albums for artist $artistId", e)
             emptyList()
         }
@@ -177,7 +172,7 @@ class JellyfinMusicApi(
                 parameters.append("SortOrder", "Ascending")
                 parameters.append("Limit", limit.toString())
                 parameters.append("StartIndex", startIndex.toString())
-                parameters.append("Fields", "Overview,ChildCount,RunTimeTicks")
+                parameters.append("Fields", "Overview,ChildCount")
             }.buildString()
 
             Log.d(TAG, "Fetching all albums: $url")
@@ -200,6 +195,7 @@ class JellyfinMusicApi(
                 )
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error fetching all albums", e)
             emptyList()
         }
@@ -216,7 +212,7 @@ class JellyfinMusicApi(
                 parameters.append("SortBy", "DateCreated")
                 parameters.append("SortOrder", "Descending")
                 parameters.append("Limit", limit.toString())
-                parameters.append("Fields", "Overview,ChildCount,RunTimeTicks")
+                parameters.append("Fields", "Overview,ChildCount")
             }.buildString()
 
             Log.d(TAG, "Fetching recently added albums: $url")
@@ -239,6 +235,7 @@ class JellyfinMusicApi(
                 )
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error fetching recently added albums", e)
             emptyList()
         }
@@ -290,6 +287,7 @@ class JellyfinMusicApi(
                 )
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error fetching tracks for album $albumId", e)
             emptyList()
         }
@@ -343,6 +341,7 @@ class JellyfinMusicApi(
                 )
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error fetching tracks for artist $artistId", e)
             emptyList()
         }
@@ -434,6 +433,7 @@ class JellyfinMusicApi(
 
             Triple(artists, albums, tracks)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "Error searching music", e)
             Triple(emptyList(), emptyList(), emptyList())
         }

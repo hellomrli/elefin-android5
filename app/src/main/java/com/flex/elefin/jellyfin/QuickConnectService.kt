@@ -21,14 +21,7 @@ class QuickConnectService(
     private val baseUrl: String,
     private val context: Context? = null
 ) {
-    private val client = HttpClient(Android) {
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                isLenient = true
-            })
-        }
-    }
+    private val client = com.flex.elefin.networking.SharedHttpClients.authentication
 
     private fun getDeviceId(): String {
         return try {
@@ -36,6 +29,7 @@ class QuickConnectService(
                 Settings.Secure.getString(it.contentResolver, Settings.Secure.ANDROID_ID)
             } ?: "android-tv-device"
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             "android-tv-device"
         }
     }
@@ -97,6 +91,7 @@ class QuickConnectService(
                     val errorBody = try {
                         response.body<String>()
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         "Could not read error body: ${e.message}"
                     }
                     android.util.Log.e("QuickConnect", "QuickConnect initiation failed. Status: ${response.status.value}, Error: $errorBody")
@@ -114,6 +109,7 @@ class QuickConnectService(
             android.util.Log.e("QuickConnect", "Unknown host exception initiating QuickConnect", e)
             QuickConnectResult(null, QuickConnectError.ConnectionError("Cannot resolve server address. Please check the IP address or hostname."))
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("QuickConnect", "Exception initiating QuickConnect", e)
             e.printStackTrace()
             QuickConnectResult(null, QuickConnectError.UnknownError("Error: ${e.message ?: e.javaClass.simpleName}"))
@@ -167,6 +163,7 @@ class QuickConnectService(
                     val errorBody = try {
                         response.body<String>()
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         "Could not read error body: ${e.message}"
                     }
                     android.util.Log.e("QuickConnect", "QuickConnect state check failed. Status: ${response.status.value}, Error: $errorBody")
@@ -174,6 +171,7 @@ class QuickConnectService(
                 }
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("QuickConnect", "Exception getting QuickConnect state", e)
             e.printStackTrace()
             null
@@ -226,6 +224,7 @@ class QuickConnectService(
                     val errorBody = try {
                         response.body<String>()
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         "Could not read error body: ${e.message}"
                     }
                     android.util.Log.e("QuickConnect", "QuickConnect authentication failed. Status: ${response.status.value}, Error: $errorBody")
@@ -233,6 +232,7 @@ class QuickConnectService(
                 }
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("QuickConnect", "Exception authenticating with QuickConnect", e)
             e.printStackTrace()
             null

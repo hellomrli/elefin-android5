@@ -13,17 +13,20 @@ import android.content.Context
  * Used to size the image cache and the player's media buffer. Getting this wrong on a
  * 1 GB box means LMK starts killing background apps mid-playback.
  */
-fun Context.hasTightMemory(): Boolean = try {
-    val am = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
-    if (am != null && am.isLowRamDevice) {
-        true
-    } else if (am != null) {
-        val mi = ActivityManager.MemoryInfo()
-        am.getMemoryInfo(mi)
-        mi.totalMem < 2_500_000_000L // 2.5 GB decimal
-    } else {
-        false
+@Volatile private var tightMemory: Boolean? = null
+
+fun Context.hasTightMemory(): Boolean {
+    tightMemory?.let { return it }
+    return synchronized(ActivityManager::class.java) {
+        tightMemory ?: detectTightMemory().also { tightMemory = it }
     }
-} catch (e: Exception) {
-    false
+}
+
+private fun Context.detectTightMemory(): Boolean = try {
+    val am = applicationContext.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+    val info = ActivityManager.MemoryInfo()
+    am?.getMemoryInfo(info)
+    am != null && (am.isLowRamDevice || info.totalMem < 2_500_000_000L)
+} catch (_: Exception) {
+    true // Choose a bounded budget if the device cannot report its memory class.
 }
