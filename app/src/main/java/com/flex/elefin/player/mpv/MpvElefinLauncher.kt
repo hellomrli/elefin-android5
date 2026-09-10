@@ -48,7 +48,7 @@ object MpvElefinLauncher {
             } else {
                 append("static=true")
             }
-            append("&api_key=$accessToken")
+            append("&ApiKey=$accessToken")
             append("&mediaSourceId=${mediaSourceId ?: itemId}")
             append("&enableAutoStreamCopy=true")
             append("&allowVideoStreamCopy=true")
@@ -59,18 +59,12 @@ object MpvElefinLauncher {
      /**
       * Build HTTP headers for Jellyfin authentication.
       */
-     fun buildHeaders(
-         accessToken: String,
-         deviceId: String,
-         clientName: String = "Elefin",
-         version: String = BuildConfig.VERSION_NAME
-     ): String = buildString {
-        append("User-Agent: $clientName/MPV\r\n")
-        append("X-Emby-Authorization: MediaBrowser ")
-        append("Client=\"$clientName\", Device=\"AndroidTV\", DeviceId=\"$deviceId\", ")
-        append("Token=\"$accessToken\", Version=\"$version\"\r\n")
-        append("Accept: */*\r\n")
-    }
+    fun buildHeaders(
+        accessToken: String,
+        deviceId: String,
+        clientName: String = "Elefin",
+        version: String = BuildConfig.VERSION_NAME
+    ): String = MpvUrlBuilder.buildHeaders(accessToken, deviceId, clientName, version)
 
     /**
      * Launch mpv-elefin to play a video.

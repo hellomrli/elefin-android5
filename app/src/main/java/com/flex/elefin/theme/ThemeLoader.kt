@@ -11,7 +11,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
-import com.flex.elefin.BuildConfig
+import com.flex.elefin.jellyfin.JellyfinAuthorization
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -43,7 +43,7 @@ class ThemeLoader(
                 android.util.Log.d("ThemeLoader", "Fetching CSS from: $cssUrl")
                 
                 val cssResponse: HttpResponse = client.get(cssUrl) {
-                    header("X-Emby-Authorization", "MediaBrowser Client=\"Elefin\", Device=\"Android TV\", DeviceId=\"\", Version=\"${BuildConfig.VERSION_NAME}\", Token=\"$accessToken\"")
+                    header(JellyfinAuthorization.HEADER_NAME, JellyfinAuthorization.header(accessToken))
                 }
                 
                 val cssStatus = cssResponse.status

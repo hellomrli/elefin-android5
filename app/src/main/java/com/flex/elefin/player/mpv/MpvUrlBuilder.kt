@@ -1,11 +1,12 @@
 package com.flex.elefin.player.mpv
 
 import com.flex.elefin.BuildConfig
+import com.flex.elefin.jellyfin.JellyfinAuthorization
 
 /**
  * Builds Jellyfin-compatible URLs for MPV playback.
  * 
- * IMPORTANT: Jellyfin requires lowercase parameter names!
+ * Uses the supported Authorization header and ApiKey query parameter.
  */
 object MpvUrlBuilder {
     
@@ -20,16 +21,15 @@ object MpvUrlBuilder {
         version: String = BuildConfig.VERSION_NAME
     ): String = buildString {
         append("User-Agent: $clientName/MPV\r\n")
-        append("X-Emby-Authorization: MediaBrowser ")
-        append("Client=\"$clientName\", Device=\"AndroidTV\", DeviceId=\"$deviceId\", ")
-        append("Token=\"$accessToken\", Version=\"$version\"\r\n")
+        append(JellyfinAuthorization.HEADER_NAME).append(": ")
+        append(JellyfinAuthorization.header(accessToken, deviceId, clientName, "AndroidTV", version))
+        append("\r\n")
         append("Accept: */*\r\n")
     }
     
     /**
      * Build direct stream URL for Jellyfin.
      * 
-     * Uses lowercase parameter names as required by Jellyfin.
      * Always uses static=true for direct streaming - resume is handled client-side by MPV.
      */
     fun buildStreamUrl(
@@ -46,7 +46,7 @@ object MpvUrlBuilder {
             // Always use static=true for direct streaming without transcoding
             // Resume position is handled client-side by MPV seeking after load
             append("static=true")
-            append("&api_key=$accessToken")
+            append("&ApiKey=$accessToken")
             append("&mediaSourceId=${mediaSourceId ?: itemId}")
             append("&enableAutoStreamCopy=true")
             append("&allowVideoStreamCopy=true")
@@ -66,7 +66,7 @@ object MpvUrlBuilder {
         mediaSourceId: String? = null
     ): String {
         val baseUrl = serverUrl.removeSuffix("/")
-        return "$baseUrl/Items/$itemId/Download?api_key=$accessToken&mediaSourceId=${mediaSourceId ?: itemId}"
+        return "$baseUrl/Items/$itemId/Download?ApiKey=$accessToken&mediaSourceId=${mediaSourceId ?: itemId}"
     }
 }
 

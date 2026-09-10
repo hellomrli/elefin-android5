@@ -73,7 +73,8 @@ class JellyfinRepository(
             if (refreshVersion != versionAtRequest && !forceMetadata) return
             val refreshMetadata = forceMetadata || _libraries.value.isEmpty() ||
                 System.currentTimeMillis() - metadataRefreshedAt >= 5 * 60_000L
-            if (refreshMetadata) fetchLibraries()
+            // Keep the load error visible; starting row requests would overwrite it with an empty state.
+            if (refreshMetadata && !fetchLibraries()) return
             com.flex.elefin.player.PlaybackReports.awaitPendingReports()
             val tasks: List<suspend () -> Unit> = buildList {
                 add { fetchContinueWatching() }
@@ -384,19 +385,29 @@ class JellyfinRepository(
         }
     }
 
-    suspend fun fetchLibraries() {
-        try {
+    suspend fun fetchLibraries(): Boolean {
+        _isLoading.value = true
+        return try {
             val libraries = apiService.getLibraries()
             // Filter out Live TV library
             _libraries.value = libraries.filterNot { 
                 it.Type.equals("livetv", ignoreCase = true) || 
                 it.Name.equals("Live TV", ignoreCase = true)
             }
+            _error.value = null
+            true
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            e.printStackTrace()
-            _error.value = "fetchLibraries: ${e.message ?: e.javaClass.simpleName}"
-            println("Error fetching libraries: ${e.message}")
+            val status = (e as? io.ktor.client.plugins.ResponseException)?.response?.status?.value
+            _error.value = when (status) {
+                401 -> "无法获取媒体库：登录已失效，请退出账号后重新登录。"
+                403 -> "无法获取媒体库：当前账号没有访问权限，请检查服务器中的用户权限。"
+                null -> "媒体库加载失败，请检查服务器连接后重试。"
+                else -> "媒体库加载失败（HTTP " + status + "），请稍后重试。"
+            }
+            false
+        } finally {
+            _isLoading.value = false
         }
     }
     
@@ -500,7 +511,6 @@ class JellyfinRepository(
         return true
     }
 }
-
 
 
 

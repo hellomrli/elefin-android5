@@ -16,9 +16,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import com.flex.elefin.BuildConfig
 
 @Serializable
 data class AuthenticationRequest(
@@ -40,9 +38,9 @@ data class UserInfo(
 
 class JellyfinAuthService(
     private val baseUrl: String,
-    private val context: Context? = null
+    private val context: Context? = null,
+    private val client: HttpClient = com.flex.elefin.networking.SharedHttpClients.authentication
 ) {
-    private val client = com.flex.elefin.networking.SharedHttpClients.authentication
 
     private fun getDeviceId(): String {
         return try {
@@ -74,24 +72,17 @@ class JellyfinAuthService(
             }
             
             val deviceId = getDeviceId()
-            val deviceName = "Android TV"
-            val clientName = "Elefin"
-            val clientVersion = BuildConfig.VERSION_NAME
-            
-            val embyAuthHeader = "MediaBrowser Client=\"$clientName\", Device=\"$deviceName\", DeviceId=\"$deviceId\", Version=\"$clientVersion\""
+            val authHeader = JellyfinAuthorization.header(deviceId = deviceId)
             
             println("Authenticating to: $url")
             println("DeviceId: $deviceId")
-            println("Username: $username")
             
             val requestBody = AuthenticationRequest(Username = username, Pw = password)
-            val jsonBody = Json.encodeToString(AuthenticationRequest.serializer(), requestBody)
-            println("Request body: $jsonBody")
             
             val response: HttpResponse = client.post(url) {
                 header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
                 header(HttpHeaders.Accept, ContentType.Application.Json.toString())
-                header("X-Emby-Authorization", embyAuthHeader)
+                header(JellyfinAuthorization.HEADER_NAME, authHeader)
                 setBody(requestBody)
             }
             
@@ -118,7 +109,6 @@ class JellyfinAuthService(
         }
     }
 }
-
 
 
 

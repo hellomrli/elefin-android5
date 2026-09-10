@@ -1,8 +1,20 @@
 # Elefin Android 5 修正版
 
-本分支面向 Android TV，最低系统为 Android 5.0（API 21）。当前版本为 `1.2.2-zh-hw`（版本号 `10202`，发布标签 `v1.2.2`）。保留 compileSdk / targetSdk 36、Java 11 字节码、core library desugaring、ARM 分包、原生库 legacy packaging 和 Release R8。
+本分支面向 Android TV，最低系统为 Android 5.0（API 21）。当前版本为 `1.2.3-zh-hw`（版本号 `10203`，发布标签 `v1.2.3`）。保留 compileSdk / targetSdk 36、Java 11 字节码、core library desugaring、ARM 分包、原生库 legacy packaging 和 Release R8。
 
-## 本次修复
+## 1.2.3：Jellyfin 12.0 兼容性
+
+Jellyfin 12.0 默认关闭旧鉴权。`1.2.2-zh-hw` 使用的 `X-Emby-Authorization`、`X-Emby-Token` 和 `api_key` 不再被标准鉴权流程接受，使需要登录的媒体内容请求遭到拒绝。
+
+- 登录、Quick Connect、媒体库、搜索、图片、播放和进度上报统一使用 `Authorization: MediaBrowser …, Token="…"`，鉴权参数按官方 SDK 的方式编码。
+- 直接播放、转码、字幕、MPV 和音乐链接使用受支持的 `ApiKey` 查询参数；只使用图片 URL 的音乐封面也带上鉴权。
+- 设备 ID 缺失时，进度上报仍携带登录令牌，由服务器恢复已登录设备的信息。
+- 媒体库加载失败会显示登录失效、权限不足或 HTTP 错误；失败刷新保留现有数据，不再把请求失败当作空库。
+- 登录流程不再输出密码、Quick Connect secret 或登录令牌片段。
+
+协议依据：[Jellyfin 12.0 发布说明](https://github.com/jellyfin/jellyfin/releases/tag/v12.0)、[关闭旧鉴权的改动](https://github.com/jellyfin/jellyfin/pull/15559)以及 [12.0 鉴权解析源码](https://github.com/jellyfin/jellyfin/blob/v12.0/Jellyfin.Server.Implementations/Security/AuthorizationContext.cs)。相同的 `Authorization` 和 `ApiKey` 格式在 10.10.7 源码中也受支持。
+
+## 1.2.2 已有修复
 
 - MPV 的原生调用通过实例会话串行执行，初始化前、销毁中和旧回调不会访问 native handle。预告片的延迟音轨绑定生命周期，后台等待时不创建播放器。
 - ExoPlayer / MPV 共用应用级进度上报队列。退出前获取位置快照，停止上报最多重试三次；失败时保留本地位置，详情与续播读取会恢复尚未上报的位置。转码及 MPV 回退保留当前进度和轨道选择。
@@ -48,13 +60,17 @@ python3 scripts/verify_api21_apks.py
 
 Release 工作流需要同名 GitHub Secrets（文件路径除外），以及原密钥内容的 `ELEFIN_KEYSTORE_BASE64` Secret。CI 临时还原文件，构建后删除；构建和校验失败时不发布。PR 校验不需要签名 Secrets。
 
-`scripts/legacy_signing_sha256.txt` 只保存公开证书指纹。校验脚本要求两个 APK 的应用 ID 和版本与项目一致，都是 API 21、包含 v1 签名、匹配原证书，并包含字幕字体和许可。发布时通过 `--release-tag v1.2.2` 同时校验更新版本号；使用 `--apk-dir /path/to/downloads` 可复核下载的云端安装包。标签构建通过后，工作流读取 `releases/<tag>.md` 发布说明并发布两个 APK，同时将 R8 混淆映射保存在构建产物中。
+`scripts/legacy_signing_sha256.txt` 只保存公开证书指纹。校验脚本要求两个 APK 的应用 ID 和版本与项目一致，都是 API 21、包含 v1 签名、匹配原证书，并包含字幕字体和许可。发布时通过 `--release-tag v1.2.3` 同时校验更新版本号；使用 `--apk-dir /path/to/downloads` 可复核下载的云端安装包。标签构建通过后，工作流读取 `releases/<tag>.md` 发布说明并发布两个 APK，同时将 R8 混淆映射保存在构建产物中。
 
 旧密钥已出现在历史提交中；移动文件不能撤销泄露。本次是为兼容更新而保留旧身份，未重写仓库历史。未来换钥需要另行安排迁移，API 21 不支持用现代 v3 签名轮换直接覆盖安装。
 
 ## 验证边界
 
-2026-09-06 本地检查：20 项 JVM 测试全部通过；完整 Lint 为 0 错误、213 条警告，无 `NewApi`。两个 Release APK 均通过最低 API 21、ABI、字幕资源、v1 签名和原发布证书指纹校验。警告主要为现有样式、未使用资源和依赖更新提示，不能直接以提高依赖最低 SDK 的方式消除。
+2026-09-06 的 1.2.2 本地检查：20 项 JVM 测试全部通过；完整 Lint 为 0 错误、213 条警告，无 `NewApi`。两个 Release APK 均通过最低 API 21、ABI、字幕资源、v1 签名和原发布证书指纹校验。警告主要为现有样式、未使用资源和依赖更新提示，不能直接以提高依赖最低 SDK 的方式消除。
+
+1.2.3 增加 10 项 HTTP 兼容性回归测试，验证标准鉴权、登录与 Quick Connect、带路径前缀的媒体请求、播放上报、视频与字幕链接、音乐封面，以及请求失败和取消的传播。2026-09-09 本地 30 项 JVM 测试全部通过；完整 Lint 为 0 错误、241 条警告和 39 条提示，无 `NewApi`。两个 Release APK 均通过 API 21、ABI、字幕资源、v1 签名、原发布证书和 `v1.2.3` 版本号校验。
+
+同时用官方 Linux 便携包启动了隔离的 Jellyfin 12.0.0，只监听本机回环地址并使用独立测试库。在 `EnableLegacyAuthorization=false` 下完成 22 项 HTTP 检查：三个旧鉴权方式访问媒体库均返回 401，标准请求头和 `ApiKey` 均返回 200；媒体库分页、搜索、详情、PlaybackInfo、封面、字幕与 Quick Connect 返回 200，视频 Range 请求返回 206，播放状态上报返回 204。测试包含 URL 路径前缀和中英文字幕。此验证覆盖服务端协议，不能替代 Android 5 盒子上的实际播放测试。
 
 本地 JVM 回归测试覆盖原生会话边界、播放位置与协议 JSON、媒体类型、分页、取消和设备回退策略。Lint 和 APK 检查不能替代 API 21 真机验证。请按 `REVIEW-API21.md` 中的场景检查快速返回、断网退出、90% 完成、解码失败后的续播、中英文 SRT / ASS、遥控器焦点，以及大库和长时间播放的 PSS / 帧时间。
 

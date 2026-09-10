@@ -2,6 +2,7 @@ package com.flex.elefin.music.data
 
 import android.util.Log
 import com.flex.elefin.music.model.*
+import com.flex.elefin.jellyfin.JellyfinAuthorization
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.android.Android
@@ -71,15 +72,21 @@ data class MusicMediaStream(
 class JellyfinMusicApi(
     private val baseUrl: String,
     private val accessToken: String,
-    private val userId: String
+    private val userId: String,
+    private val client: HttpClient = com.flex.elefin.networking.SharedHttpClients.jellyfin
 ) {
-    private val client = com.flex.elefin.networking.SharedHttpClients.jellyfin
+    private val authorizationHeader = JellyfinAuthorization.header(accessToken)
 
     private val base: String
         get() = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
 
     private fun imageUrl(itemId: String): String {
-        return "${base}Items/$itemId/Images/Primary?fillHeight=300&fillWidth=300&quality=90"
+        return URLBuilder().takeFrom("${base}Items/$itemId/Images/Primary").apply {
+            parameters.append("fillHeight", "300")
+            parameters.append("fillWidth", "300")
+            parameters.append("quality", "90")
+            parameters.append(JellyfinAuthorization.QUERY_PARAMETER, accessToken)
+        }.buildString()
     }
 
     /**
@@ -88,7 +95,7 @@ class JellyfinMusicApi(
     suspend fun getArtists(limit: Int = 100, startIndex: Int = 0): List<Artist> {
         return try {
             val url = URLBuilder().takeFrom("${base}Users/$userId/Items").apply {
-                parameters.append("IncludeItemTypes", "MusicArtist,Artist")
+                parameters.append("IncludeItemTypes", "MusicArtist")
                 parameters.append("Recursive", "true")
                 parameters.append("SortBy", "SortName")
                 parameters.append("SortOrder", "Ascending")
@@ -100,7 +107,7 @@ class JellyfinMusicApi(
             Log.d(TAG, "Fetching artists (via Items): $url")
 
             val response: MusicItemsResponse = client.get(url) {
-                header("X-Emby-Token", accessToken)
+                header(JellyfinAuthorization.HEADER_NAME, authorizationHeader)
             }.body()
 
             response.Items.map { item ->
@@ -137,7 +144,7 @@ class JellyfinMusicApi(
             Log.d(TAG, "Fetching albums for artist $artistId: $url")
 
             val response: MusicItemsResponse = client.get(url) {
-                header("X-Emby-Token", accessToken)
+                header(JellyfinAuthorization.HEADER_NAME, authorizationHeader)
             }.body()
 
             response.Items.map { item ->
@@ -178,7 +185,7 @@ class JellyfinMusicApi(
             Log.d(TAG, "Fetching all albums: $url")
 
             val response: MusicItemsResponse = client.get(url) {
-                header("X-Emby-Token", accessToken)
+                header(JellyfinAuthorization.HEADER_NAME, authorizationHeader)
             }.body()
 
             response.Items.map { item ->
@@ -218,7 +225,7 @@ class JellyfinMusicApi(
             Log.d(TAG, "Fetching recently added albums: $url")
 
             val response: MusicItemsResponse = client.get(url) {
-                header("X-Emby-Token", accessToken)
+                header(JellyfinAuthorization.HEADER_NAME, authorizationHeader)
             }.body()
 
             response.Items.map { item ->
@@ -257,7 +264,7 @@ class JellyfinMusicApi(
             Log.d(TAG, "Fetching tracks for album $albumId: $url")
 
             val response: MusicItemsResponse = client.get(url) {
-                header("X-Emby-Token", accessToken)
+                header(JellyfinAuthorization.HEADER_NAME, authorizationHeader)
             }.body()
 
             response.Items.map { item ->
@@ -279,7 +286,7 @@ class JellyfinMusicApi(
                     } else if (item.AlbumId != null) {
                         imageUrl(item.AlbumId)
                     } else null,
-                    streamUrl = "${base}Audio/${item.Id}/universal?UserId=$userId&Container=opus,webm|opus,mp3,aac,m4a|aac,m4b|aac,flac,webma,webm|webma,wav,ogg&TranscodingContainer=ts&TranscodingProtocol=hls&AudioCodec=aac&api_key=$accessToken",
+                    streamUrl = "${base}Audio/${item.Id}/universal?UserId=$userId&Container=opus,webm|opus,mp3,aac,m4a|aac,m4b|aac,flac,webma,webm|webma,wav,ogg&TranscodingContainer=ts&TranscodingProtocol=hls&AudioCodec=aac&ApiKey=$accessToken",
                     codec = audioStream?.Codec,
                     bitrate = audioStream?.BitRate ?: item.MediaSources?.firstOrNull()?.Bitrate,
                     sampleRate = audioStream?.SampleRate,
@@ -311,7 +318,7 @@ class JellyfinMusicApi(
             Log.d(TAG, "Fetching tracks for artist $artistId: $url")
 
             val response: MusicItemsResponse = client.get(url) {
-                header("X-Emby-Token", accessToken)
+                header(JellyfinAuthorization.HEADER_NAME, authorizationHeader)
             }.body()
 
             response.Items.map { item ->
@@ -333,7 +340,7 @@ class JellyfinMusicApi(
                     } else if (item.AlbumId != null) {
                         imageUrl(item.AlbumId)
                     } else null,
-                    streamUrl = "${base}Audio/${item.Id}/universal?UserId=$userId&Container=opus,webm|opus,mp3,aac,m4a|aac,m4b|aac,flac,webma,webm|webma,wav,ogg&TranscodingContainer=ts&TranscodingProtocol=hls&AudioCodec=aac&api_key=$accessToken",
+                    streamUrl = "${base}Audio/${item.Id}/universal?UserId=$userId&Container=opus,webm|opus,mp3,aac,m4a|aac,m4b|aac,flac,webma,webm|webma,wav,ogg&TranscodingContainer=ts&TranscodingProtocol=hls&AudioCodec=aac&ApiKey=$accessToken",
                     codec = audioStream?.Codec,
                     bitrate = audioStream?.BitRate ?: item.MediaSources?.firstOrNull()?.Bitrate,
                     sampleRate = audioStream?.SampleRate,
@@ -364,7 +371,7 @@ class JellyfinMusicApi(
             }.buildString()
 
             val artistsResponse: MusicItemsResponse = client.get(artistsUrl) {
-                header("X-Emby-Token", accessToken)
+                header(JellyfinAuthorization.HEADER_NAME, authorizationHeader)
             }.body()
 
             val artists = artistsResponse.Items.map { item ->
@@ -386,7 +393,7 @@ class JellyfinMusicApi(
             }.buildString()
 
             val albumsResponse: MusicItemsResponse = client.get(albumsUrl) {
-                header("X-Emby-Token", accessToken)
+                header(JellyfinAuthorization.HEADER_NAME, authorizationHeader)
             }.body()
 
             val albums = albumsResponse.Items.map { item ->
@@ -411,7 +418,7 @@ class JellyfinMusicApi(
             }.buildString()
 
             val tracksResponse: MusicItemsResponse = client.get(tracksUrl) {
-                header("X-Emby-Token", accessToken)
+                header(JellyfinAuthorization.HEADER_NAME, authorizationHeader)
             }.body()
 
             val tracks = tracksResponse.Items.map { item ->
@@ -424,7 +431,7 @@ class JellyfinMusicApi(
                     trackNumber = item.IndexNumber ?: 0,
                     durationMs = (item.RunTimeTicks ?: 0) / 10000,
                     imageUrl = if (item.AlbumId != null) imageUrl(item.AlbumId) else null,
-                    streamUrl = "${base}Audio/${item.Id}/universal?UserId=$userId&Container=opus,webm|opus,mp3,aac,m4a|aac,m4b|aac,flac,webma,webm|webma,wav,ogg&TranscodingContainer=ts&TranscodingProtocol=hls&AudioCodec=aac&api_key=$accessToken",
+                    streamUrl = "${base}Audio/${item.Id}/universal?UserId=$userId&Container=opus,webm|opus,mp3,aac,m4a|aac,m4b|aac,flac,webma,webm|webma,wav,ogg&TranscodingContainer=ts&TranscodingProtocol=hls&AudioCodec=aac&ApiKey=$accessToken",
                     codec = null,
                     bitrate = null,
                     sampleRate = null
@@ -439,4 +446,3 @@ class JellyfinMusicApi(
         }
     }
 }
-

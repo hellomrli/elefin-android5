@@ -34,10 +34,10 @@ android {
         targetSdk = 36
 
         // Version code: major * 10000 + minor * 100 + patch
-        // Must stay in sync with the release tag: UpdateService.parseVersion("v1.2.2")
-        // computes 10202 and offers an update only when that beats this value.
-        versionCode = 10202
-        versionName = "1.2.2-zh-hw"
+        // Must stay in sync with the release tag: UpdateService.parseVersion("v1.2.3")
+        // computes 10203 and offers an update only when that beats this value.
+        versionCode = 10203
+        versionName = "1.2.3-zh-hw"
 
         ndk {
             // No separate native symbol bundle - nothing here is uploaded to Play.
@@ -120,6 +120,10 @@ android {
         compose = true
         buildConfig = true
     }
+    testOptions {
+        // HTTP contract tests run service code (including Android logging) on the JVM.
+        unitTests.isReturnDefaultValues = true
+    }
     packaging {
         jniLibs {
             // Required for API < 23: native libs must be extracted at install time.
@@ -131,6 +135,7 @@ android {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    testImplementation("io.ktor:ktor-client-mock:2.3.12")
 
     // Core library desugaring (java.time etc. on Android 5.0 / API 21)
     coreLibraryDesugaring(libs.desugar.jdk.libs)

@@ -15,13 +15,12 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
-import com.flex.elefin.BuildConfig
 
 class QuickConnectService(
     private val baseUrl: String,
-    private val context: Context? = null
+    private val context: Context? = null,
+    private val client: HttpClient = com.flex.elefin.networking.SharedHttpClients.authentication
 ) {
-    private val client = com.flex.elefin.networking.SharedHttpClients.authentication
 
     private fun getDeviceId(): String {
         return try {
@@ -55,20 +54,15 @@ class QuickConnectService(
             }
             
             val deviceId = getDeviceId()
-            val deviceName = "Android TV"
-            val clientName = "Elefin"
-            val clientVersion = BuildConfig.VERSION_NAME
-            
-            val embyAuthHeader = "MediaBrowser Client=\"$clientName\", Device=\"$deviceName\", DeviceId=\"$deviceId\", Version=\"$clientVersion\""
+            val authHeader = JellyfinAuthorization.header(deviceId = deviceId)
             
             android.util.Log.d("QuickConnect", "Initiating QuickConnect at: $url")
             android.util.Log.d("QuickConnect", "DeviceId: $deviceId")
-            android.util.Log.d("QuickConnect", "Auth header: $embyAuthHeader")
             
             val response: HttpResponse = client.post(url) {
                 header(HttpHeaders.Accept, "application/json")
                 header(HttpHeaders.ContentType, "application/json")
-                header("X-Emby-Authorization", embyAuthHeader)
+                header(JellyfinAuthorization.HEADER_NAME, authHeader)
             }
             
             android.util.Log.d("QuickConnect", "Response status: ${response.status.value} (${response.status})")
@@ -76,7 +70,7 @@ class QuickConnectService(
             when (response.status) {
                 HttpStatusCode.OK, HttpStatusCode.Created -> {
                     val result = response.body<QuickConnectInitiateResponse>()
-                    android.util.Log.d("QuickConnect", "QuickConnect initiated successfully. Code: ${result.Code}, Secret: ${result.Secret}")
+                    android.util.Log.d("QuickConnect", "QuickConnect initiated successfully. Code: ${result.Code}")
                     QuickConnectResult(result, null)
                 }
                 HttpStatusCode.Unauthorized -> {
@@ -126,18 +120,12 @@ class QuickConnectService(
             }
             
             val deviceId = getDeviceId()
-            val deviceName = "Android TV"
-            val clientName = "Elefin"
-            val clientVersion = BuildConfig.VERSION_NAME
+            val authHeader = JellyfinAuthorization.header(deviceId = deviceId)
             
-            val embyAuthHeader = "MediaBrowser Client=\"$clientName\", Device=\"$deviceName\", DeviceId=\"$deviceId\", Version=\"$clientVersion\""
-            
-            android.util.Log.d("QuickConnect", "Polling QuickConnect state at: $url")
-            android.util.Log.d("QuickConnect", "Secret: $secret")
             
             val response = client.get(url) {
                 header(HttpHeaders.Accept, "application/json")
-                header("X-Emby-Authorization", embyAuthHeader)
+                header(JellyfinAuthorization.HEADER_NAME, authHeader)
             }
             
             android.util.Log.d("QuickConnect", "Response status: ${response.status.value} (${response.status})")
@@ -146,9 +134,6 @@ class QuickConnectService(
                 HttpStatusCode.OK -> {
                     val state = response.body<QuickConnectStateResponse>()
                     android.util.Log.d("QuickConnect", "State response: Authenticated=${state.Authenticated}, HasAuth=${state.Authentication != null}")
-                    if (state.Authenticated && state.Authentication != null) {
-                        android.util.Log.d("QuickConnect", "✅ Authentication successful! AccessToken: ${state.Authentication.AccessToken.take(20)}..., UserId: ${state.Authentication.User.Id}")
-                    }
                     state
                 }
                 HttpStatusCode.Unauthorized -> {
@@ -188,19 +173,14 @@ class QuickConnectService(
             }
             
             val deviceId = getDeviceId()
-            val deviceName = "Android TV"
-            val clientName = "Elefin"
-            val clientVersion = BuildConfig.VERSION_NAME
-            
-            val embyAuthHeader = "MediaBrowser Client=\"$clientName\", Device=\"$deviceName\", DeviceId=\"$deviceId\", Version=\"$clientVersion\""
+            val authHeader = JellyfinAuthorization.header(deviceId = deviceId)
             
             android.util.Log.d("QuickConnect", "Authenticating with QuickConnect at: $url")
-            android.util.Log.d("QuickConnect", "Secret: $secret")
             
             val response: HttpResponse = client.post(url) {
                 header(HttpHeaders.Accept, "application/json")
                 header(HttpHeaders.ContentType, "application/json")
-                header("X-Emby-Authorization", embyAuthHeader)
+                header(JellyfinAuthorization.HEADER_NAME, authHeader)
                 setBody(QuickConnectAuthenticateRequest(Secret = secret))
             }
             
@@ -209,7 +189,6 @@ class QuickConnectService(
             when (response.status) {
                 HttpStatusCode.OK -> {
                     val result = response.body<QuickConnectAuthenticationResponse>()
-                    android.util.Log.d("QuickConnect", "✅ QuickConnect authentication successful! AccessToken: ${result.AccessToken.take(20)}..., UserId: ${result.User.Id}")
                     result
                 }
                 HttpStatusCode.Unauthorized -> {
@@ -252,4 +231,3 @@ data class QuickConnectResult<T>(
     val data: T?,
     val error: QuickConnectError?
 )
-
