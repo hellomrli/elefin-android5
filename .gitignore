@@ -33,3 +33,8 @@ local.properties
 /signing.properties
 *.keystore
 *.jks
+
+# IDE / OS 垃圾（曾被误提交，2026-09-22 已从历史中清除）
+/.idea/
+desktop.ini
+/newpipe-extractor/bin/
