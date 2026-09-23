@@ -3166,6 +3166,23 @@ private fun MetadataBox(text: String) {
     }
 }
 
+// Genre tag - a lighter pill than MetadataBox so genres read as tags, not badges
+@Composable
+private fun GenreTag(text: String) {
+    Box(
+        modifier = Modifier
+            .background(Color.White.copy(alpha = 0.16f), RoundedCornerShape(50))
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White.copy(alpha = 0.9f),
+            maxLines = 1
+        )
+    }
+}
+
 // Format resolution helper function
 private fun formatResolution(width: Int?, height: Int?): String? {
     if (width == null || height == null) return null
@@ -3554,6 +3571,8 @@ private fun MetadataSection(
     val debouncedHighlightedItem = itemProvider()
     val debouncedHighlightedItemDetails = detailsProvider()
     val debouncedOriginalEpisodeItem = originalEpisodeItemProvider()
+    val context = LocalContext.current
+    val settings = remember { AppSettings(context) }
     
     // Create a stable key for the current item to trigger crossfade
     val metadataKey = debouncedHighlightedItem?.Id ?: ""
@@ -3578,7 +3597,6 @@ private fun MetadataSection(
                 details.ProductionYear?.toString() ?: ""
             }
             
-            val genreText = details.Genres?.take(3)?.joinToString(", ") ?: ""
             // Show episode info if:
             // 1. debouncedOriginalEpisodeItem is set and item is Series (from Recently Added Episodes where we fetch series)
             // 2. item itself is an Episode (from Continue Watching, Next Up where we keep the episode as highlighted)
@@ -3620,6 +3638,10 @@ private fun MetadataSection(
                     details
                 }
                 
+                // Official-client style header: the artwork logo stands in for the title.
+                // The header shares the top 40% of the screen with the first row, so a
+                // logo buys its height back with one synopsis line.
+                val showsLogo = settings.useLogoForTitle && logoSource(titleItem) != null
                 TitleOrLogo(
                     item = titleItem,
                     apiService = apiService,
@@ -3627,7 +3649,9 @@ private fun MetadataSection(
                         fontSize = MaterialTheme.typography.headlineMedium.fontSize * 0.64f // Reduced by 20% (0.8 * 0.8 = 0.64)
                     ),
                     color = Color.White,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    modifier = Modifier.padding(bottom = 8.dp),
+                    logoHeightDp = 56f,
+                    logoMaxWidthDp = 320f
                 )
                 
                 // Episode name below title (for episodes from Continue Watching, Next Up, or Recently Added Episodes)
@@ -3642,83 +3666,59 @@ private fun MetadataSection(
                     )
                 }
                 
-                // Metadata: Season/Episode, Year, Runtime, Genre (old text-based) + new MetadataBox items
+                // Metadata line (S/E · year · runtime · ends at), then rating badges and genre tags
+                val playTarget = if (isEpisodeHighlight && episodeForMetadata != null && !isSeriesItem) episodeForMetadata else details
+                val endsAtText = if (!isSeriesItem) {
+                    formatEndsAt(playTarget.RunTimeTicks ?: details.RunTimeTicks, playTarget.UserData?.PositionTicks, settings.use24HourTime)
+                } else ""
+                val factsText = listOfNotNull(
+                    seasonEpisodeText,
+                    yearText.takeIf { it.isNotEmpty() },
+                    // Don't show runtime for Series items (shows)
+                    runtimeText.takeIf { it.isNotEmpty() && !isSeriesItem },
+                    endsAtText.takeIf { it.isNotEmpty() }?.let { "结束于 $it" }
+                ).joinToString("  ·  ")
+                
                 Row(
                     modifier = Modifier.padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Old text-based metadata (Season/Episode, Year, Runtime, Genre)
-                    if (seasonEpisodeText != null || yearText.isNotEmpty() || runtimeText.isNotEmpty() || genreText.isNotEmpty()) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (seasonEpisodeText != null) {
-                                Text(
-                                    text = seasonEpisodeText,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.8f
-                                    ),
-                                    color = Color.White.copy(alpha = 0.9f)
-                                )
-                            }
-                            if (yearText.isNotEmpty()) {
-                                Text(
-                                    text = yearText,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.8f
-                                    ),
-                                    color = Color.White.copy(alpha = 0.9f)
-                                )
-                            }
-                            // Don't show runtime for Series items (shows)
-                            if (runtimeText.isNotEmpty() && !isSeriesItem) {
-                                Text(
-                                    text = runtimeText,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.8f
-                                    ),
-                                    color = Color.White.copy(alpha = 0.9f)
-                                )
-                            }
-                            if (genreText.isNotEmpty()) {
-                                Text(
-                                    text = genreText,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.8f
-                                    ),
-                                    color = Color.White.copy(alpha = 0.9f)
-                                )
-                            }
-                        }
+                    if (factsText.isNotEmpty()) {
+                        Text(
+                            text = factsText,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.8f
+                            ),
+                            color = Color.White.copy(alpha = 0.9f),
+                            maxLines = 1,
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
                     }
                     
-                    // New MetadataBox components (to the right of old text-based metadata)
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Get media information
-                        val videoStream = details.MediaSources?.firstOrNull()?.MediaStreams?.firstOrNull { it.Type == "Video" }
-                        val audioStream = details.MediaSources?.firstOrNull()?.MediaStreams?.firstOrNull { it.Type == "Audio" }
-                        
-                        // Maturity Rating
-                        details.OfficialRating?.let { rating ->
-                            MetadataBox(text = rating)
-                        }
-                        
-                        // Review Rating with Rotten Tomatoes icons support
-                        RatingDisplay(
-                            item = details,
-                            communityRating = details.CommunityRating,
-                            criticRating = details.CriticRating
-                        )
-                        
-                        // Language
-                        audioStream?.Language?.let { lang ->
-                            MetadataBox(text = lang.uppercase())
-                        }
+                    // Get media information
+                    val audioStream = details.MediaSources?.firstOrNull()?.MediaStreams?.firstOrNull { it.Type == "Audio" }
+                    
+                    // Maturity Rating
+                    details.OfficialRating?.let { rating ->
+                        MetadataBox(text = rating)
+                    }
+                    
+                    // Review Rating with Rotten Tomatoes icons support
+                    RatingDisplay(
+                        item = details,
+                        communityRating = details.CommunityRating,
+                        criticRating = details.CriticRating
+                    )
+                    
+                    // Language
+                    audioStream?.Language?.let { lang ->
+                        MetadataBox(text = lang.uppercase())
+                    }
+                    
+                    // Genres last, so a long row clips them rather than the ratings
+                    details.Genres?.take(3)?.forEach { genre ->
+                        GenreTag(text = genre)
                     }
                 }
                 
@@ -3738,7 +3738,7 @@ private fun MetadataSection(
                                 lineHeight = MaterialTheme.typography.bodyLarge.fontSize * 0.8f * 1.1f // Reduced line spacing (10% of font size)
                             ),
                             color = Color.White.copy(alpha = 0.9f),
-                            maxLines = 3,
+                            maxLines = if (showsLogo) 2 else 3,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )

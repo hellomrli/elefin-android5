@@ -33,6 +33,24 @@ fun formatRuntime(runTimeTicks: Long?): String {
 }
 
 /**
+ * "Ends at" clock time for playing an item now, like the official Jellyfin client:
+ * now + runtime, minus the resume position when there is one.
+ * @return e.g. "22:35" / "10:35 PM", or empty when the runtime is unknown or already played out
+ */
+fun formatEndsAt(
+    runTimeTicks: Long?,
+    positionTicks: Long?,
+    use24Hour: Boolean,
+    nowMillis: Long = System.currentTimeMillis()
+): String {
+    if (runTimeTicks == null || runTimeTicks <= 0) return ""
+    val remainingTicks = runTimeTicks - (positionTicks ?: 0L).coerceAtLeast(0L)
+    if (remainingTicks <= 0) return ""
+    val pattern = if (use24Hour) "HH:mm" else "h:mm a"
+    return SimpleDateFormat(pattern, Locale.getDefault()).format(Date(nowMillis + remainingTicks / 10_000))
+}
+
+/**
  * Format date from ISO string to "Nov 1, 2025" format
  * @param dateString ISO date string (e.g., "2025-11-01T12:00:00Z")
  * @return Formatted string like "Nov 1, 2025" or empty string if null/invalid

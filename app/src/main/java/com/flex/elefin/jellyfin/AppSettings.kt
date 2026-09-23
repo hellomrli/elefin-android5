@@ -216,7 +216,7 @@ class AppSettings(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_TRANSCODE_AAC_TO_AC3, value).apply()
     
     var useLogoForTitle: Boolean
-        get() = prefs.getBoolean(KEY_USE_LOGO_FOR_TITLE, false) // Disabled by default
+        get() = prefs.getBoolean(KEY_USE_LOGO_FOR_TITLE, true) // Enabled by default (official-client style); a saved choice wins
         set(value) = prefs.edit().putBoolean(KEY_USE_LOGO_FOR_TITLE, value).apply()
     
     var autoplayNextEpisode: Boolean

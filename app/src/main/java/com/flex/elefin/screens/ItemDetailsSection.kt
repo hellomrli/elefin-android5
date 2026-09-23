@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.runtime.Composable
@@ -21,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.TextUnit
@@ -33,6 +35,16 @@ import com.flex.elefin.jellyfin.JellyfinApiService
 import com.flex.elefin.jellyfin.AppSettings
 
 /**
+ * Where an item's logo comes from: its own Logo image, or for an episode the series logo
+ * (no tag - the server resolves it). Null when the item has no logo to show.
+ */
+internal fun logoSource(item: JellyfinItem): Pair<String, String?>? {
+    item.ImageTags?.get("Logo")?.let { return item.Id to it }
+    if (item.Type == "Episode" && item.SeriesId != null) return item.SeriesId to null
+    return null
+}
+
+/**
  * Composable that displays either the title text or logo image based on settings
  */
 @Composable
@@ -42,35 +54,24 @@ fun TitleOrLogo(
     style: androidx.compose.ui.text.TextStyle,
     color: Color,
     modifier: Modifier = Modifier,
-    logoHeightDp: Float = 45f // Default height, can be customized per screen
+    logoHeightDp: Float = 45f, // Default height, can be customized per screen
+    logoMaxWidthDp: Float? = null // Keeps very wide logos from running across the header
 ) {
     val context = LocalContext.current
     val settings = remember { AppSettings(context) }
     val useLogo = settings.useLogoForTitle
+    val logo = logoSource(item)
     
-    // Check for item's own logo first
-    val itemLogoTag = item.ImageTags?.get("Logo")
+    // Track if logo failed to load; a new logo gets a fresh attempt
+    var logoLoadFailed by remember(logo) { mutableStateOf(false) }
     
-    // For episodes, use the SeriesId to fetch the series logo if the episode doesn't have one
-    val isEpisode = item.Type == "Episode"
-    val seriesId = item.SeriesId
-    
-    // Determine which ID and tag to use for the logo
-    val (logoItemId, logoTag, hasLogo) = when {
-        // Item has its own logo
-        itemLogoTag != null -> Triple(item.Id, itemLogoTag, true)
-        // Episode with a SeriesId - use series logo (pass null tag, Jellyfin will find it)
-        isEpisode && seriesId != null -> Triple(seriesId, null, true)
-        else -> Triple(item.Id, null, false)
-    }
-    
-    // Track if logo failed to load
-    var logoLoadFailed by remember { mutableStateOf(false) }
-    
-    if (useLogo && hasLogo && apiService != null && !logoLoadFailed) {
+    if (useLogo && logo != null && apiService != null && !logoLoadFailed) {
         // Show logo image - size can be customized per screen
         // Default is 45dp, but can be reduced for specific screens (e.g., SeriesDetailsScreen uses 31.5dp)
         val logoHeight = logoHeightDp.dp
+        // Fetch at display size: logos are transparent PNGs decoded as ARGB_8888, and the
+        // unsized default (1920x1080) costs several MB per logo on a 1 GB box.
+        val maxHeightPx = with(LocalDensity.current) { logoHeight.roundToPx() }
         
         Box(
             modifier = modifier.fillMaxWidth(),
@@ -78,14 +79,16 @@ fun TitleOrLogo(
         ) {
             AsyncImage(
                 model = ImageRequest.Builder(context)
-                    .data(apiService.getImageUrl(logoItemId, "Logo", logoTag))
+                    .data(apiService.getImageUrl(logo.first, "Logo", logo.second, maxWidth = maxHeightPx * 4, maxHeight = maxHeightPx))
                     .headers(apiService.getImageRequestHeaders())
                     .build(),
                 contentDescription = item.Name,
                 modifier = Modifier
                     .height(logoHeight) // Fixed height for consistent layout
+                    .then(if (logoMaxWidthDp != null) Modifier.widthIn(max = logoMaxWidthDp.dp) else Modifier)
                     .wrapContentWidth(),
                 contentScale = ContentScale.Fit,
+                alignment = Alignment.CenterStart,
                 onError = { 
                     // Logo failed to load, fallback to title text
                     logoLoadFailed = true
