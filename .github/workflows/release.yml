@@ -15,16 +15,16 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       # compileSdk = 36. Install it explicitly rather than relying on whatever
       # the runner image happens to ship - AGP will not download platforms itself.
@@ -39,7 +39,7 @@ jobs:
         run: sdkmanager --install "ndk;27.0.12077973"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
 
       - name: Restore private release signing
         env:
@@ -70,14 +70,14 @@ jobs:
         run: ls -lh app/build/outputs/apk/release/
 
       - name: Upload APKs as workflow artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: elefin-apks
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
       - name: Preserve R8 mapping for crash reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: elefin-r8-mapping
           path: app/build/outputs/mapping/release/mapping.txt
@@ -87,7 +87,7 @@ jobs:
       # whichever way the per-ABI output naming resolves.
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: Elefin ${{ github.ref_name }} — Android 5 修复与性能优化
           body_path: releases/${{ github.ref_name }}.md
